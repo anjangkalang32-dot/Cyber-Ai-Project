@@ -50,4 +50,4 @@ app.post('/chat', async (req, res) => {
     }
 });
 
-module.exports = app; // Penting untuk Vercel
+module.exports = app;
