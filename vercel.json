@@ -6,6 +6,7 @@
     { "src": "cyber.css", "use": "@vercel/static" },
     { "src": "cyber.js", "use": "@vercel/static" },
     { "src": "neon-core.png", "use": "@vercel/static" } 
+    { "src": "center.png", "use": "@vercel/static" }
   ],
   "rewrites": [
     { "source": "/chat", "destination": "server.js" },
