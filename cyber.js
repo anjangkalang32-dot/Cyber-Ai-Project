@@ -49,11 +49,13 @@ async function sendMessage() {
     pendingImage = null; 
     uploadBtn.style.color = "#00ff00"; 
     try {
-        const response = await fetch('http://localhost:3000/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: currentText, image: currentImage })
-        });
+        const response = await fetch('/chat', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ message: userInput, image: imageData }),
+});
         
         const data = await response.json();
         appendMessage('ai', data.reply);
