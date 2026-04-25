@@ -27,7 +27,6 @@ userInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') sendMessage();
 });
 
-
 async function sendMessage() {
     const text = userInput.value.trim();
     if (text === "" && !pendingImage) return;
@@ -48,20 +47,24 @@ async function sendMessage() {
     userInput.placeholder = "Tanya sesuatu...";
     pendingImage = null; 
     uploadBtn.style.color = "#00ff00"; 
+
     try {
         const response = await fetch('/chat', {
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ message: userInput, image: imageData }),
-});
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+                message: currentText, 
+                image: currentImage // Sudah diperbaiki dari imageData ke currentImage
+            }),
+        });
         
         const data = await response.json();
         appendMessage('ai', data.reply);
     } catch (err) {
         console.error(err);
-        appendMessage('ai', "sever belum di online nih, coba lagi nanti yaa!");
+        appendMessage('ai', "Server lagi pusing nih Bosku, coba lagi nanti ya!");
     }
 }
 
@@ -71,13 +74,11 @@ function appendMessage(role, text, imageSrc = null) {
     
     let content = "";
     if (imageSrc) {
-        content += `<img src="${imageSrc}">`; 
+        content += `<img src="${imageSrc}" style="max-width: 200px; display: block; margin-bottom: 10px; border-radius: 8px;">`;
     }
-    if (text) {
-        content += `<span>${text.replace(/\n/g, '<br>')}</span>`; 
-    }
+    content += `<span>${text}</span>`;
     
     msgDiv.innerHTML = content;
     chatBox.appendChild(msgDiv);
-    chatBox.scrollTo({ top: chatBox.scrollHeight, behavior: 'smooth' });
+    chatBox.scrollTop = chatBox.scrollHeight;
 }

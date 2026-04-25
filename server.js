@@ -12,10 +12,8 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const PORT = process.env.PORT || 3000;
 
-// Melayani file dari folder root secara eksplisit
 app.use(express.static(path.join(__dirname)));
 
-// Rute utama nampilin HTML
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'cyber.html'));
 });
@@ -26,7 +24,10 @@ app.post('/chat', async (req, res) => {
         const userPrompt = message || (image ? "Jelaskan gambar ini" : "Halo");
         let content;
         if (image) {
-            content = [{ type: "text", text: userPrompt }, { type: "image_url", image_url: { url: image } }];
+            content = [
+                { type: "text", text: userPrompt },
+                { type: "image_url", image_url: { url: image } }
+            ];
         } else {
             content = [{ type: "text", text: userPrompt }];
         }
@@ -35,7 +36,7 @@ app.post('/chat', async (req, res) => {
             messages: [
                 { 
                     role: "system", 
-                    content: "Kamu adalah Cyber AI, dikembangkan oleh Anjang Kalang Kusuma. JANGAN gunakan LaTeX. Jawab dengan format [Nomor].[Jawaban] [Cara/Penjelasan]." 
+                    content: "Kamu adalah Cyber AI, dikembangkan oleh Anjang Kalang Kusuma dari Pekalongan. Jawab dengan cerdas dan gaul. JANGAN gunakan LaTeX." 
                 },
                 { role: "user", content: content }
             ],
@@ -49,6 +50,4 @@ app.post('/chat', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`Cyber AI lari di port ${PORT}! 🚀`);
-});
+module.exports = app; // Penting untuk Vercel
