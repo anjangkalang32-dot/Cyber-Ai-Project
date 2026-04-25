@@ -49,5 +49,4 @@ app.post('/chat', async (req, res) => {
         res.status(500).json({ reply: "Aduh Bosku, servernya lagi pusing!" });
     }
 });
-
 module.exports = app;
