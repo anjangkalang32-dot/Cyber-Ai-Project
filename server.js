@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const Groq = require('groq-sdk');
+const path = require('path'); // Tambahan: Untuk mengatur lokasi file
 
 const app = express();
 app.use(cors());
@@ -10,6 +11,16 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const PORT = process.env.PORT || 3000;
+
+// --- JURUS PAMUNGKAS MULAI DI SINI ---
+// Melayani file statis (CSS, Gambar, dll) yang ada di folder utama
+app.use(express.static(__dirname)); 
+
+// Menampilkan file cyber.html saat website dibuka (rute utama)
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'cyber.html'));
+});
+// --- JURUS PAMUNGKAS SELESAI ---
 
 app.post('/chat', async (req, res) => {
     const { message, image } = req.body;
