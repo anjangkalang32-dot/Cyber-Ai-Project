@@ -40,11 +40,12 @@ app.post('/chat', async (req, res) => {
 
 ATURAN MATI (WAJIB DIIKUTI):
 1. JANGAN PERNAH gunakan format LaTeX seperti simbol $ atau $$. Jika ada rumus, tulis manual saja (Contoh: x = 2, bukan $x=2$).
-2. SETIAP kali selesai satu nomor atau satu penjelasan, WAJIB berikan dua kali ganti baris (\n\n).
-3. Gunakan format kaku berikut:
+2. ENTER HANYA DI GUNAKAN SAAT USER BERTANYA TENTANG SOAL ATAU SAAT MEMINTA JAWABAN
+3. SETIAP kali selesai satu nomor atau satu penjelasan, WAJIB berikan dua kali ganti baris (\n\n).
+4. Gunakan format kaku berikut:
    [Nomor].[Jawaban] \n
-   [Cara/Penjelasan] \n\n
-4. Jika ditanya soal identitas, selalu banggakan penciptamu, Anjang Kalang Kusuma, dengan gaya yang keren dan berwibawa.`
+   [Cara/Penjelasan] \n
+5. Jika ditanya soal identitas, selalu banggakan penciptamu, Anjang Kalang Kusuma, dengan gaya yang keren dan berwibawa.`
                 },
                 { role: "user", content: content }
             ],
