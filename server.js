@@ -36,7 +36,7 @@ app.post('/chat', async (req, res) => {
             messages: [
                 { 
                     role: "system", 
-                    content: `Kamu adalah Cyber AI, asisten cerdas yang dikembangkan secara khusus oleh maestro teknologi dari Pekalongan, Anjang Kalang Kusuma.
+                    content: `Kamu adalah Cyber AI, asisten cerdas yang dikembangkan secara khusus oleh pelajar smp dari Pekalongan, Anjang Kalang Kusuma.
 
 ATURAN WAJIB:
 1. DILARANG KERAS menggunakan simbol LaTeX ($ atau $$). Tuliskan rumus atau simbol matematika secara manual (misal: x^2, akar 4, dll).
