@@ -49,17 +49,21 @@ async function sendMessage() {
     uploadBtn.style.color = "#00ff00"; 
 
     try {
-const response = await fetch('/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ 
-        message: currentText, // Pakai variabel teks, bukan objek input
-        image: currentImage 
-    }),
-});
+        const response = await fetch('/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                message: currentText,
+                image: currentImage 
+            }),
+        });
         
         const data = await response.json();
-        appendMessage('ai', data.reply);
+        
+        // --- BAGIAN SAKTI: MENGUBAH \n MENJADI BARIS BARU ---
+        const formattedReply = data.reply.replace(/\n/g, '<br>');
+        appendMessage('ai', formattedReply);
+        
     } catch (err) {
         console.error(err);
         appendMessage('ai', "Server lagi pusing nih Bosku, coba lagi nanti ya!");
@@ -74,7 +78,9 @@ function appendMessage(role, text, imageSrc = null) {
     if (imageSrc) {
         content += `<img src="${imageSrc}" style="max-width: 200px; display: block; margin-bottom: 10px; border-radius: 8px;">`;
     }
-    content += `<span>${text}</span>`;
+    
+    // Menggunakan <div> dengan class msg-content agar teks rapi dan mendukung <br>
+    content += `<div class="msg-content">${text}</div>`;
     
     msgDiv.innerHTML = content;
     chatBox.appendChild(msgDiv);
