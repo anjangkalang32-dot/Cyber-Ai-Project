@@ -37,7 +37,6 @@ firebase.auth().onAuthStateChanged((user) => {
         console.log("Sobat Cyber terdeteksi sudah login, meluncur ke halaman utama...");
         
         // HAPUS TANDA // DI BAWAH INI UNTUK MENGAKTIFKAN REDIRECT
-        window.location.href = "cyber.html"; 
     } else {
         console.log("Sobat Cyber belum login, silakan desain sepuasnya!");
     }

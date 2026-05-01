@@ -14,5 +14,6 @@
   "rewrites": [
     { "source": "/chat", "destination": "server.js" },
     { "source": "/", "destination": "cyber.html" }
+    
   ]
 }
