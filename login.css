@@ -114,3 +114,45 @@ body {
     font-weight: 600;
     letter-spacing: 1px;
 }
+/* --- MOBILE OPTIMIZATION BY GEMINI --- */
+@media (max-width: 600px) {
+    body {
+        padding: 20px; /* Kasih ruang dikit biar gak nempel tembok */
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+
+    h1 {
+        font-size: 1.8rem !important; /* Perbesar judul biar tegas */
+        width: 100%;
+        text-align: center;
+        margin-bottom: 10px;
+    }
+
+    p {
+        font-size: 1rem !important; /* Teks sub-judul lebih kebaca */
+        margin-bottom: 30px;
+    }
+
+    /* Bikin tombol login lebih gede & enak di-tap */
+    #login-button, .google-btn, button[onclick="Login()"] {
+        width: 90% !important; /* Lebarkan tombol biar mantap */
+        max-width: 320px;
+        padding: 15px 20px !important; /* Tebalin tombolnya */
+        font-size: 1rem !important;
+        border-radius: 12px !important; /* Sudut lebih halus modern */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+    }
+
+    /* Kalau ada logo di halaman login, rapihin juga */
+    .login-logo {
+        width: 80px;
+        height: auto;
+        margin-bottom: 20px;
+    }
+}
