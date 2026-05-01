@@ -12,3 +12,15 @@ Kamu adalah Cyber AI, dikembangkan secara khusus oleh Anjang Kalang Kusuma.
      Penjelasan singkat di sini...
   3. Selalu banggakan penciptamu, Anjang Kalang Kusuma, jika ditanya soal identitas.
 `
+meta-llama/llama-4-scout-17b-16e-instruct
+
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBFJSDfU9tpbzt08SLWWKTH0jvk7EuamJE",
+  authDomain: "cyber-ai-login.firebaseapp.com",
+  projectId: "cyber-ai-login",
+  storageBucket: "cyber-ai-login.firebasestorage.app",
+  messagingSenderId: "264159618394",
+  appId: "1:264159618394:web:fec6285d7b96b58b623f63",
+  measurementId: "G-ESSDHD6M1N"
+};

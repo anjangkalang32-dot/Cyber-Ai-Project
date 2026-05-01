@@ -1,0 +1,116 @@
+/* Import Font Orbitron biar makin Futuristik */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Poppins:wght@300;400;600&display=swap');
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background-color: #0d0f14;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: 'Poppins', sans-serif;
+    overflow: hidden;
+}
+
+.login-container {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px; /* Jarak antar elemen otomatis rapi */
+}
+
+.text1 {
+    color: #ffffff;
+    font-size: 2.5rem;
+    font-family: 'Orbitron', sans-serif;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+    margin-bottom: 5px;
+}
+
+.text2 {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 1.2rem;
+    margin-bottom: 40px; /* Jarak ke tombol */
+}
+
+/* Update CSS Tombol Login Bosku */
+.login-btn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 320px;
+    height: 55px;
+    background: #0d0f14; /* Warna background dalem tombol */
+    color: white;
+    border-radius: 50px;
+    cursor: pointer;
+    overflow: hidden; /* Biar cahaya RGB-nya nggak luber keluar */
+    border: none; /* Kita ganti border asli dengan efek pseudo-element */
+    z-index: 1;
+}
+
+/* Background RGB yang muter-muter di belakang */
+.login-btn::before {
+    content: '';
+    position: absolute;
+    width: 150%;
+    height: 300%;
+    background: conic-gradient(#00ff00, #00ffff, #ff00ff, #00ff00);
+    animation: rotateRGB 4s linear infinite;
+    z-index: -2;
+}
+
+/* Nutupin tengahnya biar cuma pinggirannya yang kelihatan RGB */
+.login-btn::after {
+    content: '';
+    position: absolute;
+    inset: 3px; /* Ketebalan border RGB (3px) */
+    background: #0d0f14;
+    border-radius: 50px;
+    z-index: -1;
+}
+
+/* Efek Hover biar makin nyala */
+.login-btn:hover {
+    box-shadow: 0 0 20px rgba(0, 255, 0, 0.6);
+    transform: scale(1.05);
+}
+
+/* Animasi Putaran RGB */
+@keyframes rotateRGB {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.login-btn span {
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
+}
+
+.login-btn:hover {
+    background: rgba(0, 255, 0, 0.1);
+    box-shadow: 0 0 25px rgba(0, 255, 0, 0.5);
+    transform: scale(1.02);
+}
+
+.login-btn div {
+    display: flex;
+    align-items: center;
+}
+
+.login-btn span {
+    font-weight: 600;
+    letter-spacing: 1px;
+}

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Login Cyber AI</title>
+<!-- 1. Firebase App (Bumbu Utama) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+
+<!-- 2. Firebase Auth (Untuk Login) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+
+<!-- 3. INI YANG KURANG: Firebase Firestore (Untuk Database) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <link rel="stylesheet" href="login.css">
+</head>
+<body>
+    <div class="login-container">
+        <h1 class="text1">Selamat Datang di Cyber AI</h1>
+        <h2 class="text2">Silakan Masuk untuk Melanjutkan</h2>
+        
+        <button onclick="loginGoogle()" class="login-btn">
+            <div>
+                <img src="https://fonts.gstatic.com/s/i/productlogos/googleg/v6/24px.svg" style="margin-right: 15px; width: 25px;">
+                <span style="color: white;">Masuk dengan Google</span>
+            </div>
+        </button>
+    </div>
+
+    <script src="login.js"></script>
+</body>
+</html>

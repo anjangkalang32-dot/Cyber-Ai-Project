@@ -32,13 +32,14 @@ body {
     text-shadow: 0 0 10px #00ff00;
 }
 #chat-box {
+flex: 1; /* Biar dia ngambil sisa ruang yang ada */
+    overflow-y: auto; /* Munculkan scroll hanya jika chat penuh */
+    overflow-x: hidden;
     display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    flex: 1;
-    padding: 20px 10%;
-    overflow-y: auto;
+    flex-direction: column; /* Chat urut dari atas ke bawah */
+    padding: 20px;
+    scroll-behavior: smooth; /* Biar scroll-nya halus, gak kaku */
+    height: calc(100vh - 180px);
 }
 #welcome-screen[style*="display: none"] {
     margin: 0;
@@ -52,13 +53,15 @@ body {
     padding: 5px;
 }
 .center-logo {
-    width: 100px;
-    height: 100px;
+    max-width: 100px;
+    height: auto;
     border-radius: 50%;
     object-fit: cover;
     border: 3px solid #161b22;
+    margin-left: 70px;
 }
 #welcome-screen p {
+    margin-left: 100px;
     color: #8b949e;
     font-size: 0.9rem;
     letter-spacing: 1px;
@@ -107,6 +110,7 @@ body {
     font-size: 1rem;
     border: none;
     box-shadow: none;
+    word-wrap: break-word;
 }
 .ai-msg::before {
     content: "Cyber AI ✨";
@@ -183,6 +187,12 @@ body {
     padding-top: 10px;
     color: white;
 }
+.material-symbols-outlined{
+    padding-bottom: 10px;
+}
+.login-btn {
+    font-size: 40px;
+}
 /* --- PERBAIKAN MOBILE BY BOSKU ANJANG --- */
 @media (max-width: 600px) {
     body {
@@ -237,4 +247,136 @@ body {
         max-width: 85%; /* Lebih lebar dikit di layar HP */
         font-size: 0.85rem;
     }
+}
+/* Sidebar Style */
+#sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 260px;
+    height: 100%;
+    background: #0a0a0a;
+    border-right: 1px solid #00ff00;
+    z-index: 1000;
+    transition: transform 0.3s ease;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+}
+
+.sidebar-hidden {
+    transform: translateX(-100%); /* Sembunyi ke kiri */
+}
+
+.sidebar-visible {
+    transform: translateX(0); /* Muncul */
+}
+
+/* Overlay Gelap */
+#overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 999;
+}
+
+/* Tombol Chat Baru ala Gemini */
+.btn-new-chat {
+    margin-top:50px;
+    background: #1a1a1a;
+    color: #002fff;
+    border: 1px solid #002fff;
+    padding: 10px 20px;
+    border-radius: 20px;
+    cursor: pointer;
+    width: 100%;
+    text-align: left;
+    border-right: 3px solid #002fff; /* Tebalin dikit biar kelihatan */
+    animation: rgb-border 5s linear infinite;
+}
+
+.btn-new-chat:hover {
+    background: #002fff;
+    color: #000;
+}
+#menu-toggle {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    font-size: 24px;
+    color: #00ff00;
+    cursor: pointer;
+    z-index: 1100; /* Harus lebih tinggi dari sidebar */
+    transition: 0.3s;
+}
+
+#menu-toggle:hover {
+    text-shadow: 0 0 10px #00ff00;
+}
+.history-item {
+    padding: 10px;
+    margin: 5px 0;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: 0.3s;
+    color: #8b949e;
+}
+.history-item:hover {
+    background: rgba(0, 255, 0, 0.1);
+    color: #00ff00;
+}
+.history-section {
+    margin-top: 20px;
+    padding: 0 10px;
+}
+
+.history-label {
+    font-size: 12px;
+    color: #8b949e;
+    margin-bottom: 10px;
+    font-weight: bold;
+}
+
+.history-item {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    margin-bottom: 5px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: 0.2s;
+    font-size: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis; /* Biar judul panjang terpotong rapi */
+}
+
+.history-item:hover {
+    background: rgba(0, 255, 0, 0.1); /* Efek glow hijau ala Bosku */
+    color: #00ff00;
+}
+
+.history-item i {
+    margin-right: 10px;
+    font-size: 16px;
+}
+.msg-content {
+    white-space: pre-wrap !important; /* Menjaga baris baru (\n) */
+    word-wrap: break-word;
+    line-height: 1.8; /* Memberi jarak antar baris teks */
+    padding: 5px 0;
+}
+
+/* Hilangkan logo python raksasa jika masih muncul secara default */
+#welcome-screen img {
+    max-width: 100px; /* Batasi ukuran gambar welcome */
+    height: auto;
+    margin-left: 50px;
+}
+@keyframes rgb-border {
+    0% { border-color: #ff0000; box-shadow: 0 0 10px #ff0000; }
+    33% { border-color: #00ff00; box-shadow: 0 0 10px #00ff00; }
+    66% { border-color: #0000ff; box-shadow: 0 0 10px #0000ff; }
+    100% { border-color: #ff0000; box-shadow: 0 0 10px #ff0000; }
 }

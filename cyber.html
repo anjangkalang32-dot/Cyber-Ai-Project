@@ -4,12 +4,76 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cyber AI - King Edition</title>
+    <meta name="referrer" content="no-referrer">
     <link rel="stylesheet" href="cyber.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
     <link rel="icon" type="image/png" href="neon-core.png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
+    <!-- Tombol Menu (Hamburger) -->
+<div id="menu-toggle" onclick="toggleSidebar()">
+    <i class="fas fa-bars"></i>
+</div>
+
+<!-- Sidebar ala Gemini -->
+<div id="sidebar" class="sidebar-hidden">
+    <div class="sidebar-header">
+        <button onclick="mulaiChatBaru()" class="btn-new-chat">
+            <i class="fas fa-plus"></i> Chat Baru
+        </button>
+        <!-- Tambahkan ini di dalam <div id="sidebar"> -->
+<button onclick="ubahNamaChat()" class="btn-rename" style="margin-top: 10px; width: 100%; padding: 8px; border-radius: 10px; border: 1px solid #00ff00; background: transparent; color: #00ff00; cursor: pointer;">
+    <i class="fas fa-edit"></i> Ganti Nama Chat
+</button>
+    </div>
+    
+    <div id="riwayat-list" class="sidebar-content">
+        <!-- List riwayat chat dari Firestore akan muncul di sini -->
+        <p class="section-title">Terbaru</p>
+        <div class="history-section">
+        <p class="history-label">Terbaru</p>
+        <div id="riwayat-list">
+            <!-- Daftar riwayat chat akan muncul di sini secara otomatis -->
+        </div>
+    </div>
+    </div>
+
+    <div class="sidebar-footer">
+        <button onclick="bukaSetting()" class="btn-setting">
+            <i class="fas fa-cog"></i> Setelan
+        </button>
+    </div>
+</div>
+
+<!-- Overlay untuk menutup pop-up saat klik di luar -->
+<div id="overlay" onclick="toggleSidebar()"></div>
+    <button id="login-btn" onclick="Login()" style="
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    width: 45px;
+    height: 45px;
+    background: #4285F4; /* Biru Google buat default */
+    color: white;
+    border: none;
+    border-radius: 50%; /* Bikin bulet sempurna */
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden; /* Biar foto gak keluar jalur */
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    z-index: 1000; /* Biar selalu di depan */
+    transition: all 0.3s ease;
+">
+  <span id="login-text" class="material-symbols-outlined">
+account_circle
+</span>
+</button>
     <div class="main-container">
         <div id="chat-box">
             <div id="welcome-screen">
@@ -17,7 +81,13 @@
                 </div>
                 <p>Selamat datang di Cyber AI!</p>
             </div>
+            <div id="image-preview-container" style="display: none; padding: 10px; background: #1a1f26; border-top: 1px solid #00ff00; align-items: center; gap: 10px;">
+    <img id="image-preview" src="" style="height: 50px; border-radius: 5px; border: 1px solid #00ff00;">
+    <span style="color: #00ff00; font-size: 12px;">Gambar siap kirim!</span>
+    <button onclick="cancelImage()" style="background: none; border: none; color: #ff4444; cursor: pointer;"><i class="fas fa-times-circle"></i></button>
+</div>
         </div>
+        
         <div class="input-area">
             <input type="file" id="file-input" accept="image/*" style="display: none;">
             
@@ -30,6 +100,17 @@ add_a_photo
         </div>
     </div>
 
+<!-- Firebase App (Utama) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<!-- Firebase Auth -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<!-- Firebase Firestore -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+<!-- TAMBAHKAN BARIS INI (PENTING!) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+
+<!-- File JS kamu -->
     <script src="cyber.js"></script>
 </body>
 </html>
