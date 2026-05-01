@@ -115,44 +115,54 @@ body {
     letter-spacing: 1px;
 }
 /* --- MOBILE OPTIMIZATION BY GEMINI --- */
+/* --- MOBILE OPTIMIZATION BY GEMINI --- */
 @media (max-width: 600px) {
     body {
-        padding: 20px; /* Kasih ruang dikit biar gak nempel tembok */
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
+        padding: 20px;
+        overflow: hidden; /* Mencegah scroll yang tidak perlu di HP */
     }
 
-    h1 {
-        font-size: 1.8rem !important; /* Perbesar judul biar tegas */
+    .login-container {
         width: 100%;
-        text-align: center;
-        margin-bottom: 10px;
+        gap: 15px;
     }
 
-    p {
-        font-size: 1rem !important; /* Teks sub-judul lebih kebaca */
-        margin-bottom: 30px;
+    /* Ukuran Judul di HP */
+    .text1 {
+        font-size: 1.6rem !important; /* Ukuran lebih pas untuk layar sempit */
+        line-height: 1.2;
+        padding: 0 10px;
     }
 
-    /* Bikin tombol login lebih gede & enak di-tap */
-    #login-button, .google-btn, button[onclick="Login()"] {
-        width: 90% !important; /* Lebarkan tombol biar mantap */
-        max-width: 320px;
-        padding: 15px 20px !important; /* Tebalin tombolnya */
-        font-size: 1rem !important;
-        border-radius: 12px !important; /* Sudut lebih halus modern */
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        gap: 10px;
+    /* Ukuran Sub-judul di HP */
+    .text2 {
+        font-size: 0.9rem !important;
+        margin-bottom: 25px;
+        padding: 0 15px;
     }
 
-    /* Kalau ada logo di halaman login, rapihin juga */
-    .login-logo {
-        width: 80px;
-        height: auto;
-        margin-bottom: 20px;
+    /* Tombol Login di HP */
+    .login-btn {
+        width: 85vw !important; /* Lebar tombol menyesuaikan layar HP (85% lebar layar) */
+        max-width: 300px;
+        height: 50px; /* Sedikit lebih ramping agar elegan */
+        border-radius: 12px !important; /* Sudut lebih kotak modern khas mobile app */
+    }
+
+    /* Border RGB di HP (Menyesuaikan border-radius baru) */
+    .login-btn::after {
+        inset: 2px; /* Border sedikit lebih tipis di layar kecil */
+        border-radius: 12px; 
+    }
+
+    /* Ukuran Icon Google di HP */
+    .login-btn img {
+        width: 20px !important;
+        margin-right: 10px !important;
+    }
+
+    /* Ukuran Teks Tombol di HP */
+    .login-btn span {
+        font-size: 0.9rem !important;
     }
 }
