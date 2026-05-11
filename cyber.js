@@ -24,6 +24,11 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
+// Tambahkan di bawah inisialisasi Firebase
+const SB_URL = 'https://oatgbiamflsvppykohvo.supabase.co/rest/v1/';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hdGdiaWFtZmxzdnBweWtvaHZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNTk5NjMsImV4cCI6MjA5MjkzNTk2M30.Nb8dPo6P_GOW6qfLn2PMC1YBJ7hevseGvGW2aGBNgGI'; // Ambil dari gambar sebelumnya
+const supabaseClient = supabase.createClient(SB_URL, SB_KEY);
+
 // 3. Logika Upload & Preview (Attention!)[cite: 13, 14]
 if (uploadBtn && fileInput) {
     uploadBtn.addEventListener('click', () => fileInput.click());
@@ -157,14 +162,25 @@ firebase.auth().onAuthStateChanged((user) => {
 window.muatRiwayatChat = function() {
     const user = firebase.auth().currentUser;
     if (user && chatBox) {
-        db.collection("riwayat_chat").where("uid", "==", user.uid).where("chat_id", "==", currentChatId).orderBy("waktu", "asc").get().then((snap) => {
-            chatBox.innerHTML = "";
-            snap.forEach((doc) => {
-                const d = doc.data();
-                appendMessage('user', d.pesan, d.gambarUrl);
-                if(d.jawaban) appendMessage('ai', d.jawaban);
-            });
-        });
+        db.collection("riwayat_chat").where("uid", "==", user.uid).where("chat_id", "==", currentChatId).orderBy("waktu", "asc").get().then(response => response.json())
+.then(data => {
+    // 1. Tampilkan jawaban AI di layar (yang sudah ada)
+    appendMessage('ai', data.reply); 
+
+    // 2. Simpan ke Supabase (Tambahan Baru)
+    const user = firebase.auth().currentUser;
+    if (user) {
+        supabaseClient
+            .from('ai_memories')
+            .insert([{ 
+                user_email: user.email, 
+                user_name: user.displayName, 
+                chat_context: `User: ${message} | AI: ${data.reply}` // Simpan tanya-jawabnya
+            }])
+            .then(() => console.log("Ingatan tersimpan, Bosku!"))
+            .catch(err => console.error("Gagal simpan ke Supabase:", err));
+    }
+})
     }
 };
 
