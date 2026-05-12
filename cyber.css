@@ -210,7 +210,7 @@ flex: 1; /* Biar dia ngambil sisa ruang yang ada */
     }
 
     #chat-box {
-        padding: 20px 5%; /* Lebarin area chat di HP */
+        padding-top: 80px !important; /* Lebarin area chat di HP */
     }
 
     .logo-wrapper {

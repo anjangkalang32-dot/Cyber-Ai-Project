@@ -184,12 +184,12 @@ function appendMessage(role, text, imageSrc = null) {
     scrollToBottom(); 
 }
 
-firebase.auth().onAuthStateChanged((user) => {
-    if (user) {
-        document.getElementById('login-btn').innerHTML = `<img src="${user.photoURL}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
-        if (!isLoaded) { isLoaded = true; muatRiwayatChat(); tampilkanDaftarSidebar(); }
-    } else { window.location.href = "login.html"; }
-});
+// firebase.auth().onAuthStateChanged((user) => {
+//     if (user) {
+//         document.getElementById('login-btn').innerHTML = `<img src="${user.photoURL}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+//         if (!isLoaded) { isLoaded = true; muatRiwayatChat(); tampilkanDaftarSidebar(); }
+//     } else { window.location.href = "login.html"; }
+// });
 
 // FUNGSI MUAT RIWAYAT FIRESTORE (Sudah Diperbaiki)
 window.muatRiwayatChat = function() {
