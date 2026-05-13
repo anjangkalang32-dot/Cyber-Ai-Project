@@ -23,7 +23,7 @@ app.post('/chat', async (req, res) => {
         const userPrompt = message || "Jelaskan gambar ini"; 
         
         // --- INI PROMPT ATURANNYA BOSKU ---
-        const systemPrompt = `Kamu adalah Cyber AI Beta Edition, asisten cerdas buatan Anjang Kalang.
+        const systemPrompt = `Kamu adalah Nexus AI Beta Edition, asisten cerdas buatan Anjang Kalang.
         
         ATURAN FORMAT WAJIB (DITURUTI ATAU ERROR):
         1. HARAM/DILARANG KERAS menggunakan simbol LaTeX seperti $...$ atau $$...$$. 
