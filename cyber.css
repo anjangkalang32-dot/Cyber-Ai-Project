@@ -58,9 +58,6 @@ flex: 1; /* Biar dia ngambil sisa ruang yang ada */
 .center-logo {
     max-width: 120px;       /* Ukuran logo pas */
     height: auto;
-    border-radius: 50%;
-    border: 3px solid #00ff00; /* Kasih list hijau biar sangar */
-    box-shadow: 0 0 20px rgba(0, 255, 0, 0.3); /* Efek glow */
     margin: 0 !important;   /* Buang margin-left 70px yang lama */
 }
 #welcome-screen p {
