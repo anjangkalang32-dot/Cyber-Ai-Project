@@ -8,35 +8,29 @@
     <link rel="stylesheet" href="cyber.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
-    <link rel="icon" type="image/png" href="Nexus.png">
+    <link rel="icon" type="image/png" href="whale_shark.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-    <!-- Tombol Menu (Hamburger) -->
 <div id="menu-toggle" onclick="toggleSidebar()">
     <i class="fas fa-bars"></i>
 </div>
-
-<!-- Sidebar ala Gemini -->
 <div id="sidebar" class="sidebar-hidden">
     <div class="sidebar-header">
         <button onclick="mulaiChatBaru()" class="btn-new-chat">
             <i class="fas fa-plus"></i> Chat Baru
         </button>
-        <!-- Tambahkan ini di dalam <div id="sidebar"> -->
 <button onclick="ubahNamaChat()" class="btn-rename" style="margin-top: 10px; width: 100%; padding: 8px; border-radius: 10px; border: 1px solid #00ff00; background: transparent; color: #00ff00; cursor: pointer;">
     <i class="fas fa-edit"></i> Ganti Nama Chat
 </button>
     </div>
     
     <div id="riwayat-list" class="sidebar-content">
-        <!-- List riwayat chat dari Firestore akan muncul di sini -->
         <p class="section-title">Terbaru</p>
         <div class="history-section">
         <p class="history-label">Terbaru</p>
         <div id="riwayat-list">
-            <!-- Daftar riwayat chat akan muncul di sini secara otomatis -->
         </div>
     </div>
     </div>
@@ -47,8 +41,6 @@
         </button>
     </div>
 </div>
-
-<!-- Overlay untuk menutup pop-up saat klik di luar -->
 <div id="overlay" onclick="toggleSidebar()"></div>
     <button id="login-btn" onclick="Login()" style="
     position: absolute;
@@ -56,19 +48,19 @@
     right: 15px;
     width: 45px;
     height: 45px;
-    background: #4285F4; /* Biru Google buat default */
+    background: #4285F4;
     color: white;
     border: none;
-    border-radius: 50%; /* Bikin bulet sempurna */
+    border-radius: 50%;
     cursor: pointer;
     font-weight: bold;
     font-size: 20px;
     display: flex;
     align-items: center;
     justify-content: center;
-    overflow: hidden; /* Biar foto gak keluar jalur */
+    overflow: hidden;
     box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-    z-index: 1000; /* Biar selalu di depan */
+    z-index: 1000;
     transition: all 0.3s ease;
 ">
   <span id="login-text" class="material-symbols-outlined">
@@ -78,9 +70,9 @@ account_circle
     <div class="main-container">
         <div id="chat-box">
             <div id="welcome-screen">
-                <div class="logo-wrapper"> <img src="center.png" alt="Cyber AI Logo" class="center-logo">
+                <div class="logo-wrapper"> <img src="whale_shark.png" alt="Cyber AI Logo" class="center-logo">
                 </div>
-                <p>Selamat datang di Cyber AI!</p>
+                <p></p>
             </div>
             <div id="image-preview-container" style="display: none; padding: 10px; background: #1a1f26; border-top: 1px solid #00ff00; align-items: center; gap: 10px;">
     <img id="image-preview" src="" style="height: 50px; border-radius: 5px; border: 1px solid #00ff00;">
@@ -89,29 +81,35 @@ account_circle
 </div>
         </div>
         
-        <div class="input-area">
-            <input type="file" id="file-input" accept="image/*" style="display: none;">
-            
-            <button id="upload-btn" type="button"><span class="material-symbols-outlined">
-add_a_photo
-</span></button>
-            
-            <input type="text" id="user-input" placeholder="Ketik pesan atau upload gambar...">
-            <button id="send-button">Kirim</button>
+        <div class="input-area">  
+            <div class="model-picker">
+                <button id="model-button" type="button" aria-haspopup="true" aria-expanded="false">
+                    <span id="selected-model-label">Groq</span>
+                    <i class="fa-solid fa-chevron-down"></i>
+                </button>
+                <div id="model-menu" class="model-menu">
+                    <button class="model-option selected" type="button" data-model="groq">
+                        <strong>Groq</strong>
+                        <div class="model-subtitle">Llama 4 Scout</div>
+                    </button>
+                    <button class="model-option" type="button" data-model="gemini">
+                        <strong>Gemini</strong>
+                        <div class="model-subtitle">3.5 Flash</div>
+                    </button>
+                </div>
+            </div>
+            <div class="user-text">
+                <input type="text" id="user-input" placeholder="Ketik pesan atau upload gambar...">
+                <input type="file" id="file-input" accept="image/*" style="display: none;">    
+                <button id="upload-btn" type="button"><i class="fa-solid fa-plus"></i></button>
+            </div>
+            <button id="send-button"><i class="fa-solid fa-arrow-up"></i></button>
         </div>
     </div>
-
-<!-- Firebase App (Utama) -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<!-- Firebase Auth -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-<!-- Firebase Firestore -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-
-<!-- TAMBAHKAN BARIS INI (PENTING!) -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
-
-<!-- File JS kamu -->
     <script src="cyber.js"></script>
 </body>
 </html>

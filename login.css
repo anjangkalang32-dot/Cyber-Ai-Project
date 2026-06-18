@@ -1,4 +1,3 @@
-/* Import Font Orbitron biar makin Futuristik */
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Poppins:wght@300;400;600&display=swap');
 
 * {
@@ -22,7 +21,7 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 20px; /* Jarak antar elemen otomatis rapi */
+    gap: 20px;
 }
 
 .text1 {
@@ -36,10 +35,8 @@ body {
 .text2 {
     color: rgba(255, 255, 255, 0.7);
     font-size: 1.2rem;
-    margin-bottom: 40px; /* Jarak ke tombol */
+    margin-bottom: 40px;
 }
-
-/* Update CSS Tombol Login Bosku */
 .login-btn {
     position: relative;
     display: flex;
@@ -47,16 +44,14 @@ body {
     justify-content: center;
     width: 320px;
     height: 55px;
-    background: #0d0f14; /* Warna background dalem tombol */
+    background: #0d0f14;
     color: white;
     border-radius: 50px;
     cursor: pointer;
-    overflow: hidden; /* Biar cahaya RGB-nya nggak luber keluar */
-    border: none; /* Kita ganti border asli dengan efek pseudo-element */
+    overflow: hidden;
+    border: none;
     z-index: 1;
 }
-
-/* Background RGB yang muter-muter di belakang */
 .login-btn::before {
     content: '';
     position: absolute;
@@ -66,24 +61,18 @@ body {
     animation: rotateRGB 4s linear infinite;
     z-index: -2;
 }
-
-/* Nutupin tengahnya biar cuma pinggirannya yang kelihatan RGB */
 .login-btn::after {
     content: '';
     position: absolute;
-    inset: 3px; /* Ketebalan border RGB (3px) */
+    inset: 3px;
     background: #0d0f14;
     border-radius: 50px;
     z-index: -1;
 }
-
-/* Efek Hover biar makin nyala */
 .login-btn:hover {
     box-shadow: 0 0 20px rgba(0, 255, 0, 0.6);
     transform: scale(1.05);
 }
-
-/* Animasi Putaran RGB */
 @keyframes rotateRGB {
     from {
         transform: rotate(0deg);
@@ -114,12 +103,10 @@ body {
     font-weight: 600;
     letter-spacing: 1px;
 }
-/* --- MOBILE OPTIMIZATION BY GEMINI --- */
-/* --- MOBILE OPTIMIZATION BY GEMINI --- */
 @media (max-width: 600px) {
     body {
         padding: 20px;
-        overflow: hidden; /* Mencegah scroll yang tidak perlu di HP */
+        overflow: hidden;
     }
 
     .login-container {
@@ -127,41 +114,35 @@ body {
         gap: 15px;
     }
 
-    /* Ukuran Judul di HP */
     .text1 {
-        font-size: 1.6rem !important; /* Ukuran lebih pas untuk layar sempit */
+        font-size: 1.6rem !important;
         line-height: 1.2;
         padding: 0 10px;
     }
 
-    /* Ukuran Sub-judul di HP */
     .text2 {
         font-size: 0.9rem !important;
         margin-bottom: 25px;
         padding: 0 15px;
     }
 
-    /* Tombol Login di HP */
     .login-btn {
-        width: 85vw !important; /* Lebar tombol menyesuaikan layar HP (85% lebar layar) */
+        width: 85vw !important;
         max-width: 300px;
-        height: 50px; /* Sedikit lebih ramping agar elegan */
-        border-radius: 12px !important; /* Sudut lebih kotak modern khas mobile app */
+        height: 50px;
+        border-radius: 12px !important;
     }
 
-    /* Border RGB di HP (Menyesuaikan border-radius baru) */
     .login-btn::after {
-        inset: 2px; /* Border sedikit lebih tipis di layar kecil */
+        inset: 2px;
         border-radius: 12px; 
     }
 
-    /* Ukuran Icon Google di HP */
     .login-btn img {
         width: 20px !important;
         margin-right: 10px !important;
     }
 
-    /* Ukuran Teks Tombol di HP */
     .login-btn span {
         font-size: 0.9rem !important;
     }
