@@ -6,7 +6,7 @@
     { "src": "cyber.css", "use": "@vercel/static" },
     { "src": "cyber.js", "use": "@vercel/static" },
     { "src": "Nexus.png", "use": "@vercel/static" },
-    { "src": "center.png", "use": "@vercel/static" },
+    { "src": "whale_shark.png", "use": "@vercel/static" },
     { "src": "login.html", "use": "@vercel/static" },
     { "src": "login.css", "use": "@vercel/static" },
     { "src": "login.js", "use": "@vercel/static" }
