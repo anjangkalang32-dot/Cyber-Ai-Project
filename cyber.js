@@ -168,17 +168,119 @@ function appendMessage(role, text, imageSrc = null) {
     const isListOrSoal = /\d+\./.test(cleanedText) || cleanedText.includes('\n');
     const contentClass = (role === 'ai' && isListOrSoal) ? "msg-content list-mode" : "msg-content";
 
-    let contentHTML = imageSrc ? `<img src="${imageSrc}" style="max-width: 250px; display: block; border-radius: 8px; margin-bottom: 8px;">` : "";
-    
     let formattedText = cleanedText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    
-    contentHTML += `<div class="${contentClass}">${formattedText}</div>`;
-    
-    msgDiv.innerHTML = contentHTML; 
+
+    msgDiv.innerHTML = `<div class="${contentClass}">${formattedText}</div>`;
+
+    // Gambar dibuat lewat DOM API (bukan string innerHTML) supaya data URL base64
+    // yang panjang tidak perlu di-escape manual ke dalam atribut HTML.
+    if (imageSrc) {
+        msgDiv.prepend(buildChatImageElement(imageSrc));
+    }
+
     chatBox.appendChild(msgDiv);
     
     scrollToBottom(); 
 }
+
+// Bikin elemen gambar chat yang interaktif: klik untuk perbesar (lightbox),
+// plus tombol download kecil di pojok kanan atas.
+function buildChatImageElement(imageSrc) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'chat-image-wrapper';
+
+    const img = document.createElement('img');
+    img.src = imageSrc;
+    img.alt = 'Gambar chat';
+    img.loading = 'lazy';
+    img.addEventListener('click', () => window.openImageLightbox(imageSrc));
+
+    const downloadBtn = document.createElement('button');
+    downloadBtn.type = 'button';
+    downloadBtn.className = 'chat-image-download';
+    downloadBtn.title = 'Download gambar';
+    downloadBtn.setAttribute('aria-label', 'Download gambar');
+    downloadBtn.innerHTML = '<span class="material-symbols-outlined">download</span>';
+    downloadBtn.addEventListener('click', (e) => {
+        e.stopPropagation(); // jangan ikut buka lightbox
+        window.downloadChatImage(imageSrc);
+    });
+
+    wrapper.appendChild(img);
+    wrapper.appendChild(downloadBtn);
+    return wrapper;
+}
+
+// Download gambar (data URL base64) langsung ke device, tanpa perlu request ke server.
+window.downloadChatImage = function(src, filenameHint = 'gambar-ai') {
+    try {
+        const mimeMatch = src.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,/);
+        let extension = 'png';
+        if (mimeMatch) {
+            extension = mimeMatch[1].split('/')[1] || 'png';
+            if (extension === 'jpeg') extension = 'jpg';
+        }
+        const link = document.createElement('a');
+        link.href = src;
+        link.download = `${filenameHint}-${Date.now()}.${extension}`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+    } catch (err) {
+        console.error('Gagal download gambar:', err);
+        alert('Gagal download gambar, Bosku. Coba tahan/klik kanan gambar lalu simpan manual.');
+    }
+};
+
+// Lightbox sederhana: dibuat sekali secara dinamis lewat JS, lalu dipakai ulang tiap kali gambar di-klik.
+function getOrCreateLightbox() {
+    let overlay = document.getElementById('image-lightbox-overlay');
+    if (overlay) return overlay;
+
+    overlay = document.createElement('div');
+    overlay.id = 'image-lightbox-overlay';
+    overlay.innerHTML = `
+        <div class="lightbox-content">
+            <button class="lightbox-close" type="button" aria-label="Tutup">&times;</button>
+            <img id="lightbox-img" src="" alt="Gambar diperbesar">
+            <div class="lightbox-actions">
+                <button class="lightbox-btn" type="button" id="lightbox-download-btn">
+                    <span class="material-symbols-outlined" style="padding:0;font-size:18px;">download</span> Download
+                </button>
+                <button class="lightbox-btn secondary" type="button" id="lightbox-close-btn">Tutup</button>
+            </div>
+        </div>`;
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) window.closeImageLightbox();
+    });
+    overlay.querySelector('.lightbox-close').addEventListener('click', window.closeImageLightbox);
+    overlay.querySelector('#lightbox-close-btn').addEventListener('click', () => window.closeImageLightbox());
+    overlay.querySelector('#lightbox-download-btn').addEventListener('click', () => {
+        if (overlay.dataset.currentSrc) window.downloadChatImage(overlay.dataset.currentSrc);
+    });
+
+    return overlay;
+}
+
+window.openImageLightbox = function(src) {
+    const overlay = getOrCreateLightbox();
+    overlay.querySelector('#lightbox-img').src = src;
+    overlay.dataset.currentSrc = src;
+    overlay.classList.add('visible');
+    document.body.style.overflow = 'hidden';
+};
+
+window.closeImageLightbox = function() {
+    const overlay = document.getElementById('image-lightbox-overlay');
+    if (overlay) overlay.classList.remove('visible');
+    document.body.style.overflow = '';
+};
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') window.closeImageLightbox();
+});
 
 function showTypingIndicator() {
     const typingId = 'typing-indicator';

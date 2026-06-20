@@ -12,8 +12,7 @@
     { "src": "login.js", "use": "@vercel/static" }
   ],
   "rewrites": [
-    { "source": "/chat", "destination": "server.js" },
-    { "source": "/", "destination": "cyber.html" }
-    
+    { "source": "/", "destination": "cyber.html" },
+    { "source": "/(.*)", "destination": "server.js" }
   ]
 }
