@@ -1,8 +1,14 @@
 require('dotenv').config();
+const dns = require('dns');
+// Beberapa jaringan/ISP punya IPv6 yang bermasalah (connect timeout),
+// sementara IPv4 lancar. Paksa Node prioritaskan IPv4 supaya request
+// keluar (Hugging Face, dll) tidak hang.
+dns.setDefaultResultOrder('ipv4first');
 const express = require('express');
 const cors = require('cors');
 const Groq = require('groq-sdk');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { HfInference } = require('@huggingface/inference');
 const path = require('path');
 
 const app = express();
@@ -250,66 +256,35 @@ async function callHuggingFaceImage(prompt) {
     if (!hfKey) return null;
 
     const hfModel = process.env.HF_IMAGE_MODEL || "Tongyi-MAI/Z-Image-Turbo";
-    const hfUrl = process.env.HUGGINGFACE_API_URL?.trim() || `https://api-inference.huggingface.co/models/${hfModel}`;
+    // PENTING: tiap model di HF cuma dilayani provider tertentu (cek halaman model > "Inference Providers").
+    // Tongyi-MAI/Z-Image-Turbo saat ini cuma dilayani provider "fal-ai".
+    // Setiap provider eksternal (fal-ai, replicate, dll) punya skema request sendiri-sendiri yang
+    // BERBEDA dari format generik {"inputs": prompt} milik hf-inference, jadi kita tidak bisa
+    // menebak URL/payload-nya secara manual lewat fetch(). Karena itu kita pakai library resmi
+    // @huggingface/inference, yang sudah tau cara merutekan & format payload yang benar per-provider.
+    const hfProvider = process.env.HF_IMAGE_PROVIDER || "fal-ai";
 
     try {
-        console.log(`📡 HuggingFace request: URL="${hfUrl}", model="${hfModel}"`);
+        console.log(`📡 HuggingFace request: model="${hfModel}", provider="${hfProvider}"`);
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 detik timeout
 
-        const resp = await fetch(hfUrl, {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer ${hfKey}`,
-                Accept: "application/json",
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                inputs: prompt,
-                options: { wait_for_model: true }
-            }),
-            signal: controller.signal
-        });
+        const hf = new HfInference(hfKey);
+        const blob = await hf.textToImage({
+            model: hfModel,
+            inputs: prompt,
+            provider: hfProvider,
+        }, { signal: controller.signal });
 
         clearTimeout(timeoutId);
 
-        const contentType = resp.headers.get("content-type") || "";
-        if (!resp.ok) {
-            const bodyText = await resp.text();
-            console.warn("HuggingFace image API failed:", resp.status, resp.statusText, bodyText.slice(0, 300));
-            return null;
-        }
-
-        if (contentType.includes("application/json")) {
-            const json = await resp.json();
-            if (json?.error) {
-                console.warn("HuggingFace image API returned error payload:", json.error);
-                return null;
-            }
-
-            const maybeImage = Array.isArray(json?.data) ? json.data[0] : json?.data || json?.image || json?.output || json?.outputs?.[0];
-            if (typeof maybeImage === 'string') {
-                if (maybeImage.startsWith('data:image/')) {
-                    return { image: maybeImage, provider: 'huggingface' };
-                }
-                return { image: `data:image/png;base64,${maybeImage}`, provider: 'huggingface' };
-            }
-            if (typeof json?.data === 'object' && json.data?.[0]?.b64) {
-                return { image: `data:image/png;base64,${json.data[0].b64}`, provider: 'huggingface' };
-            }
-
-            console.warn('HuggingFace image API returned JSON without image data:', JSON.stringify(json).slice(0, 300));
-            return null;
-        }
-
-        const buffer = await resp.arrayBuffer();
-        const mimeType = contentType.split(";")[0] || "image/png";
-        const b64 = Buffer.from(buffer).toString("base64");
+        const buffer = Buffer.from(await blob.arrayBuffer());
+        const mimeType = blob.type || "image/png";
+        const b64 = buffer.toString("base64");
         return { image: `data:${mimeType};base64,${b64}`, provider: "huggingface" };
     } catch (e) {
         const errorMsg = e?.name === 'AbortError' ? 'Request timeout (30s)' : (e?.message || String(e));
-        const errorCode = e?.code;
-        console.warn("HuggingFace image generation error:", errorMsg, "| errorCode:", errorCode, "| errorName:", e?.name);
+        console.warn("HuggingFace image generation error:", errorMsg, "| errorName:", e?.name);
         if (e?.cause) console.warn("  Cause:", e.cause);
         return null;
     }
@@ -387,6 +362,8 @@ async function callExternalImageProvider(prompt) {
     return null;
 }
 
+// Call a local Automatic1111 / Stable Diffusion WebUI instance (phone or LAN)
+
 function isGeminiQuotaError(error) {
     const message = String(error?.message || '').toLowerCase();
     // Treat rate-limit, quota, and temporary service unavailability as recoverable/fallback-worthy
@@ -448,31 +425,27 @@ function isImageIntent(text) {
 app.get('/test-hf', async (req, res) => {
     const hfKey = process.env.HUGGINGFACE_API_KEY;
     const hfModel = process.env.HF_IMAGE_MODEL || "Tongyi-MAI/Z-Image-Turbo";
-    const hfUrl = `https://api-inference.huggingface.co/models/${hfModel}`;
+    const hfProvider = process.env.HF_IMAGE_PROVIDER || "fal-ai";
+
+    if (!hfKey) {
+        return res.json({ ok: false, error: "HUGGINGFACE_API_KEY tidak ditemukan di .env", apiKeyPresent: false, model: hfModel, provider: hfProvider });
+    }
 
     try {
-        console.log(`🧪 Testing HF connection to: ${hfUrl}`);
-        const resp = await fetch(hfUrl, {
-            method: "HEAD",
-            headers: { Authorization: `Bearer ${hfKey}` }
-        });
-        
-        res.json({ 
-            status: resp.status, 
-            statusText: resp.statusText,
-            headers: Object.fromEntries(resp.headers),
-            url: hfUrl,
-            apiKeyPresent: !!hfKey,
-            model: hfModel
-        });
+        console.log(`🧪 Testing HF text-to-image: model="${hfModel}", provider="${hfProvider}"`);
+        const result = await callHuggingFaceImage("a simple red apple on white background");
+        if (result && result.image) {
+            return res.json({ ok: true, apiKeyPresent: true, model: hfModel, provider: hfProvider, imagePreviewLength: result.image.length });
+        }
+        res.json({ ok: false, error: "Tidak ada gambar yang dihasilkan, cek log server untuk detail error.", apiKeyPresent: true, model: hfModel, provider: hfProvider });
     } catch (e) {
-        res.json({ 
+        res.json({
+            ok: false,
             error: e?.message || String(e),
             errorName: e?.name,
-            errorCode: e?.code,
-            url: hfUrl,
-            apiKeyPresent: !!hfKey,
-            model: hfModel
+            apiKeyPresent: true,
+            model: hfModel,
+            provider: hfProvider
         });
     }
 });
@@ -497,14 +470,14 @@ app.post('/chat', async (req, res) => {
                     const geminiReply = await callGemini(message, context, image);
                     return res.json({ reply: geminiReply, modelUsed: 'gemini-vision' });
                 } catch (e) {
-                    console.warn('Gemini vision failed, akan mencoba Nano Banana text->image:', e.message);
+                    console.warn('Gemini vision failed, akan mencoba Hugging Face image:', e.message);
                 }
             }
 
             if (!process.env.HUGGINGFACE_API_KEY) {
                 console.warn('❌ HUGGINGFACE_API_KEY tidak ditemukan');
                 return res.json({
-                    reply: 'Maaf, pembuatan gambar hanya didukung lewat Hugging Face sekarang. Silakan atur HUGGINGFACE_API_KEY di .env.',
+                    reply: 'Maaf, pembuatan gambar hanya didukung lewat Hugging Face. Silakan atur HUGGINGFACE_API_KEY di .env.',
                     modelUsed: 'huggingface-image-unavailable'
                 });
             }
