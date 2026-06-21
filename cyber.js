@@ -31,7 +31,7 @@ const supabaseClient = supabase.createClient(SB_URL, SB_KEY);
 
 // Nama bucket Supabase Storage tempat gambar (hasil AI maupun upload user) disimpan.
 // GANTI string ini kalau nama bucket kamu beda (cek di Supabase Dashboard > Storage).
-const IMAGE_BUCKET = 'ai_galery';
+const IMAGE_BUCKET = 'ai-galeri';
 
 // Ubah data URL (base64) jadi Blob, perlu buat di-upload ke Supabase Storage.
 async function dataUrlToBlob(dataUrl) {
@@ -40,7 +40,7 @@ async function dataUrlToBlob(dataUrl) {
 }
 
 function getExtensionFromDataUrl(dataUrl) {
-    const match = dataUrl.match(/^data:image\/([a-zA-Z0-9.+-]+);base64,/);
+    const match = dataUrl.match(/^data:[a-zA-Z0-9]+\/([a-zA-Z0-9.+-]+);base64,/);
     let ext = match ? match[1] : 'png';
     if (ext === 'jpeg') ext = 'jpg';
     return ext;
@@ -103,8 +103,8 @@ if (uploadBtn && fileInput) {
 window.cancelImage = () => {
     pendingImage = null;
     previewContainer.style.display = 'none';
-    uploadBtn.style.color = "#00ff00";
-    uploadBtn.innerHTML = '<span class="material-symbols-outlined">add_a_photo</span>';
+    uploadBtn.style.color = "#000000";
+    uploadBtn.innerHTML = '<i class="fa-solid fa-plus"></i>';
     fileInput.value = "";
 };
 
@@ -157,7 +157,7 @@ async function sendMessage() {
         
         const data = await response.json();
         hideTypingIndicator();
-        appendMessage('ai', data.reply, data.image);
+        appendMessage('ai', data.reply, data.image, data.video);
 
         if (user) {
             supabaseClient.from('ai_memories').insert([{ 
@@ -168,14 +168,15 @@ async function sendMessage() {
         }
 
         if (user) {
-            // Upload gambar (kalau ada) ke Supabase Storage dulu, paralel biar cepat.
+            // Upload gambar/video (kalau ada) ke Supabase Storage dulu, paralel biar cepat.
             // Base64-nya sendiri TIDAK disimpan ke Firestore -- cuma URL publiknya,
-            // soalnya Firestore punya batas ukuran dokumen 1MB dan base64 gambar
+            // soalnya Firestore punya batas ukuran dokumen 1MB dan base64 (apalagi video)
             // gampang banget mepet/lewat batas itu.
             const folderPath = `${user.uid}/${currentChatId}`;
-            const [gambarUserUrl, gambarAiUrl] = await Promise.all([
+            const [gambarUserUrl, gambarAiUrl, videoAiUrl] = await Promise.all([
                 uploadImageToSupabase(currentImage, folderPath),
-                uploadImageToSupabase(data.image, folderPath)
+                uploadImageToSupabase(data.image, folderPath),
+                uploadImageToSupabase(data.video, folderPath)
             ]);
 
             await db.collection("riwayat_chat").add({
@@ -186,6 +187,7 @@ async function sendMessage() {
                 gambarUrl: gambarUserUrl, 
                 jawaban: data.reply,
                 gambarAiUrl: gambarAiUrl,
+                videoAiUrl: videoAiUrl,
                 waktu: firebase.firestore.FieldValue.serverTimestamp()
             });
 if (typeof window.tampilkanDaftarSidebar === "function") {
@@ -210,30 +212,193 @@ function scrollToBottom() {
     }
 }
 
-function appendMessage(role, text, imageSrc = null) {
+// Escape karakter HTML spesial supaya teks/kode nggak dianggap tag oleh browser.
+function escapeHtml(str) {
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+// Format teks AI di LUAR blok kode: hapus notasi LaTeX kasar, bold **teks**, inline `code`.
+// PENTING: ini cuma dipanggil untuk bagian teks biasa, bukan isi blok kode -- soalnya
+// strip backslash di sini bisa ngerusak kode (regex, path Windows, escape sequence, dll).
+function formatPlainAiText(text) {
+    let cleaned = text
+        .replace(/\$/g, '')
+        .replace(/\\frac\{(.*?)\}\{(.*?)\}/g, '($1 / $2)')
+        .replace(/\\times/g, 'x')
+        .replace(/\\cdot/g, '.')
+        .replace(/\\/g, '');
+    let escaped = escapeHtml(cleaned);
+    escaped = escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    escaped = escaped.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
+    return escaped;
+}
+
+// Format teks user: cuma escape HTML + dukung **bold**, tanpa strip LaTeX (pesan user apa adanya).
+function formatUserText(text) {
+    const escaped = escapeHtml(text);
+    return escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+}
+
+// Tebak ekstensi file yang masuk akal dari nama bahasa, buat tombol download kode.
+function guessFileExtension(lang) {
+    const map = {
+        javascript: 'js', js: 'js', typescript: 'ts', ts: 'ts',
+        python: 'py', py: 'py', java: 'java', c: 'c', cpp: 'cpp', 'c++': 'cpp',
+        csharp: 'cs', 'c#': 'cs', html: 'html', css: 'css', json: 'json',
+        bash: 'sh', shell: 'sh', sh: 'sh', sql: 'sql', php: 'php',
+        go: 'go', rust: 'rs', ruby: 'rb', kotlin: 'kt', swift: 'swift',
+        yaml: 'yml', xml: 'xml', dart: 'dart'
+    };
+    if (!lang) return 'txt';
+    return map[lang.toLowerCase()] || lang.toLowerCase();
+}
+
+// Bikin satu kotak blok kode: header (label bahasa + tombol salin & download) + isi kode
+// dengan syntax highlighting (lewat highlight.js, kalau library-nya berhasil ke-load).
+function buildCodeBlockElement(lang, code) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'code-block-wrapper';
+
+    const header = document.createElement('div');
+    header.className = 'code-block-header';
+
+    const langLabel = document.createElement('span');
+    langLabel.className = 'code-block-lang';
+    langLabel.textContent = lang || 'text';
+
+    const actions = document.createElement('div');
+    actions.className = 'code-block-actions';
+
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.className = 'code-block-btn';
+    copyBtn.title = 'Salin kode';
+    copyBtn.setAttribute('aria-label', 'Salin kode');
+    copyBtn.innerHTML = '<span class="material-symbols-outlined">content_copy</span>';
+    copyBtn.addEventListener('click', async () => {
+        try {
+            await navigator.clipboard.writeText(code);
+            const original = copyBtn.innerHTML;
+            copyBtn.innerHTML = '<span class="material-symbols-outlined">check</span>';
+            setTimeout(() => { copyBtn.innerHTML = original; }, 1500);
+        } catch (err) {
+            console.error('Gagal menyalin kode:', err);
+        }
+    });
+
+    const downloadBtn = document.createElement('button');
+    downloadBtn.type = 'button';
+    downloadBtn.className = 'code-block-btn';
+    downloadBtn.title = 'Download kode';
+    downloadBtn.setAttribute('aria-label', 'Download kode');
+    downloadBtn.innerHTML = '<span class="material-symbols-outlined">download</span>';
+    downloadBtn.addEventListener('click', () => {
+        const ext = guessFileExtension(lang);
+        const blob = new Blob([code], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `code-${Date.now()}.${ext}`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+    });
+
+    actions.appendChild(copyBtn);
+    actions.appendChild(downloadBtn);
+    header.appendChild(langLabel);
+    header.appendChild(actions);
+
+    const pre = document.createElement('pre');
+    const codeEl = document.createElement('code');
+    if (lang) codeEl.className = `language-${lang}`;
+    codeEl.textContent = code; // textContent otomatis aman dari HTML injection
+
+    pre.appendChild(codeEl);
+    wrapper.appendChild(header);
+    wrapper.appendChild(pre);
+
+    if (window.hljs) {
+        try { window.hljs.highlightElement(codeEl); } catch (e) { /* bahasa nggak dikenal, biarin polos */ }
+    }
+
+    return wrapper;
+}
+
+// Satu blok teks biasa (bukan kode) -- pola list/soal yang sudah ada tetap dipertahankan.
+function appendPlainTextBlock(fragment, text) {
+    const isListOrSoal = /\d+\./.test(text) || text.includes('\n');
+    const div = document.createElement('div');
+    div.className = isListOrSoal ? 'msg-content list-mode' : 'msg-content';
+    div.innerHTML = formatPlainAiText(text);
+    fragment.appendChild(div);
+}
+
+// Parse balasan AI: pisahin blok kode (```bahasa ... ```) dari teks biasa,
+// render masing-masing dengan caranya sendiri, gabung jadi satu fragment terurut.
+function renderAiTextContent(rawText) {
+    const fragment = document.createDocumentFragment();
+    const codeBlockRegex = /```(\w+)?\n?([\s\S]*?)```/g;
+
+    let lastIndex = 0;
+    let match;
+    let hasContent = false;
+
+    while ((match = codeBlockRegex.exec(rawText)) !== null) {
+        const [fullMatch, lang, code] = match;
+
+        if (match.index > lastIndex) {
+            const beforeText = rawText.slice(lastIndex, match.index);
+            if (beforeText.trim() !== '') {
+                appendPlainTextBlock(fragment, beforeText);
+                hasContent = true;
+            }
+        }
+
+        fragment.appendChild(buildCodeBlockElement(lang, code.replace(/\n$/, '')));
+        hasContent = true;
+        lastIndex = match.index + fullMatch.length;
+    }
+
+    if (lastIndex < rawText.length) {
+        const remaining = rawText.slice(lastIndex);
+        if (remaining.trim() !== '') {
+            appendPlainTextBlock(fragment, remaining);
+            hasContent = true;
+        }
+    }
+
+    if (!hasContent) {
+        appendPlainTextBlock(fragment, rawText);
+    }
+
+    return fragment;
+}
+
+function appendMessage(role, text, imageSrc = null, videoSrc = null) {
     const chatBox = document.getElementById('chat-box');
     const msgDiv = document.createElement('div');
     msgDiv.className = `message ${role === 'user' ? 'user-msg' : 'ai-msg'}`;
 
-    let cleanedText = text;
     if (role === 'ai') {
-        cleanedText = cleanedText
-            .replace(/\$/g, '') 
-            .replace(/\\frac\{(.*?)\}\{(.*?)\}/g, '($1 / $2)') 
-            .replace(/\\times/g, 'x') 
-            .replace(/\\cdot/g, '.') 
-            .replace(/\\/g, ''); 
+        msgDiv.appendChild(renderAiTextContent(text));
+    } else {
+        const div = document.createElement('div');
+        div.className = 'msg-content';
+        div.innerHTML = formatUserText(text);
+        msgDiv.appendChild(div);
     }
 
-    const isListOrSoal = /\d+\./.test(cleanedText) || cleanedText.includes('\n');
-    const contentClass = (role === 'ai' && isListOrSoal) ? "msg-content list-mode" : "msg-content";
-
-    let formattedText = cleanedText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-
-    msgDiv.innerHTML = `<div class="${contentClass}">${formattedText}</div>`;
-
-    // Gambar dibuat lewat DOM API (bukan string innerHTML) supaya data URL base64
-    // yang panjang tidak perlu di-escape manual ke dalam atribut HTML.
+    // Gambar/video dibuat lewat DOM API (bukan string innerHTML) supaya data URL base64
+    // yang panjang (apalagi video, bisa jauh lebih besar dari gambar) tidak perlu
+    // di-escape manual ke dalam atribut HTML.
+    if (videoSrc) {
+        msgDiv.prepend(buildChatVideoElement(videoSrc));
+    }
     if (imageSrc) {
         msgDiv.prepend(buildChatImageElement(imageSrc));
     }
@@ -241,6 +406,36 @@ function appendMessage(role, text, imageSrc = null) {
     chatBox.appendChild(msgDiv);
     
     scrollToBottom(); 
+}
+
+// Bikin elemen video chat: tag <video> dengan kontrol native, plus tombol download kecil
+// di pojok kanan atas (konsisten dengan gambar). Nggak pakai lightbox karena <video>
+// sudah punya kontrol play/pause/fullscreen bawaan.
+function buildChatVideoElement(videoSrc) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'chat-image-wrapper chat-video-wrapper';
+
+    const video = document.createElement('video');
+    video.src = videoSrc;
+    video.controls = true;
+    video.loop = true;
+    video.playsInline = true;
+    video.preload = 'metadata';
+
+    const downloadBtn = document.createElement('button');
+    downloadBtn.type = 'button';
+    downloadBtn.className = 'chat-image-download';
+    downloadBtn.title = 'Download video';
+    downloadBtn.setAttribute('aria-label', 'Download video');
+    downloadBtn.innerHTML = '<span class="material-symbols-outlined">download</span>';
+    downloadBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.downloadChatImage(videoSrc, 'video-ai');
+    });
+
+    wrapper.appendChild(video);
+    wrapper.appendChild(downloadBtn);
+    return wrapper;
 }
 
 // Bikin elemen gambar chat yang interaktif: klik untuk perbesar (lightbox),
@@ -358,12 +553,12 @@ function hideTypingIndicator() {
     if (el) el.remove();
 }
 
-firebase.auth().onAuthStateChanged((user) => {
-    if (user) {
-        document.getElementById('login-btn').innerHTML = `<img src="${user.photoURL}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
-        if (!isLoaded) { isLoaded = true; muatRiwayatChat(); tampilkanDaftarSidebar(); }
-    } else { window.location.href = "login.html"; }
-});
+// firebase.auth().onAuthStateChanged((user) => {
+//     if (user) {
+//         document.getElementById('login-btn').innerHTML = `<img src="${user.photoURL}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+//         if (!isLoaded) { isLoaded = true; muatRiwayatChat(); tampilkanDaftarSidebar(); }
+//     } else { window.location.href = "login.html"; }
+// });
 
 window.muatRiwayatChat = function() {
     const user = firebase.auth().currentUser;
@@ -378,7 +573,7 @@ window.muatRiwayatChat = function() {
                 snap.forEach((doc) => {
                     const d = doc.data();
                     appendMessage('user', d.pesan, d.gambarUrl);
-                    if (d.jawaban) appendMessage('ai', d.jawaban, d.gambarAiUrl);
+                    if (d.jawaban) appendMessage('ai', d.jawaban, d.gambarAiUrl, d.videoAiUrl);
                 });
             })
             .catch(err => console.error("Error muat riwayat:", err));
@@ -473,7 +668,13 @@ if (userInput) userInput.addEventListener('keypress', (e) => { if (e.key === 'En
 
 function updateModelUI() {
     if (!selectedModelLabel || !modelMenu) return;
-    selectedModelLabel.textContent = selectedModel === 'gemini' ? 'Gemini' : 'Groq';
+    if (selectedModel === 'gemini') {
+        selectedModelLabel.textContent = 'Gemini';
+    } else if (selectedModel === 'gpt-oss') {
+        selectedModelLabel.textContent = 'GPT-OSS 120B';
+    } else {
+        selectedModelLabel.textContent = 'Groq';
+    }
     const options = modelMenu.querySelectorAll('.model-option');
     options.forEach(opt => {
         opt.classList.toggle('selected', opt.dataset.model === selectedModel);

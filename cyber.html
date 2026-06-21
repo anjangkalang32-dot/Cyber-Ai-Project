@@ -10,6 +10,8 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
     <link rel="icon" type="image/png" href="whale_shark.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -91,6 +93,10 @@ account_circle
                     <button class="model-option selected" type="button" data-model="groq">
                         <strong>Groq</strong>
                         <div class="model-subtitle">Llama 4 Scout</div>
+                    </button>
+                    <button class="model-option" type="button" data-model="gpt-oss">
+                        <strong>OpenAI GPT-OSS</strong>
+                        <div class="model-subtitle">openai/gpt-oss-120b</div>
                     </button>
                     <button class="model-option" type="button" data-model="gemini">
                         <strong>Gemini</strong>

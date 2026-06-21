@@ -29,12 +29,13 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const PORT = process.env.PORT || 3000;
 
+// System prompt yang sama untuk kedua model
 const systemPrompt = `Kamu adalah Nexus AI Beta Edition, asisten cerdas buatan Anjang Kalang.
 
 ATURAN FORMAT WAJIB (DITURUTI ATAU ERROR):
 1. HARAM/DILARANG KERAS menggunakan simbol LaTeX seperti $...$ atau $$...$$. 
 2. Gunakan simbol keyboard standar: ^2 untuk kuadrat, / untuk bagi, * untuk kali.
-3. Gunakan minimal DUA KALI ENTER (\n\n) untuk setiap poin jawaban agar tidak berderet.
+3. Gunakan minimal SATU KALI ENTER (\n) untuk setiap poin jawaban agar tidak berderet.
 4. Setiap langkah matematika WAJIB ditulis di baris baru.
 5. Gunakan format Markdown standar (**Bold**) untuk poin penting.
 
@@ -52,7 +53,8 @@ PENTING:
 - HANYA gunakan baris baru (Enter) jika kamu menjawab soal, memberikan langkah-langkah, atau membuat daftar. 
 - Gunakan format angka (1., 2., 3.) untuk jawaban soal agar sistemku bisa mendeteksinya.`;
 
-async function callGroq(message, context, image) {
+// Fungsi untuk memanggil Groq
+async function callGroq(message, context, image, modelName = "meta-llama/llama-4-scout-17b-16e-instruct") {
     const messagesForAI = [
         { role: "system", content: systemPrompt }
     ];
@@ -75,7 +77,7 @@ async function callGroq(message, context, image) {
 
     const chatCompletion = await groq.chat.completions.create({
         messages: messagesForAI,
-        model: "meta-llama/llama-4-scout-17b-16e-instruct",
+        model: modelName,
         temperature: 0.8,
     });
 
@@ -288,6 +290,47 @@ async function callHuggingFaceImage(prompt) {
     }
 }
 
+async function callHuggingFaceVideo(prompt) {
+    const hfKey = process.env.HUGGINGFACE_API_KEY;
+    if (!hfKey) return null;
+
+    // Wan-AI/Wan2.2-TI2V-5B dipilih karena ini contoh RESMI dari dokumentasi provider fal-ai
+    // khusus untuk task text-to-video (beda dengan LTX-Video yang di fal-ai cuma didaftarkan
+    // untuk image-to-video, walau namanya kedengaran umum).
+    const hfModel = process.env.HF_VIDEO_MODEL || "Wan-AI/Wan2.2-TI2V-5B";
+    const hfProvider = process.env.HF_VIDEO_PROVIDER || "fal-ai";
+
+    try {
+        console.log(`📡 HuggingFace video request: model="${hfModel}", provider="${hfProvider}"`);
+        const controller = new AbortController();
+        // Video butuh waktu jauh lebih lama dari gambar, jadi timeout-nya dikasih lega (280 detik).
+        // CATATAN: kalau di-deploy ke Vercel dengan vercel.json versi "builds" yang sekarang,
+        // Vercel sendiri yang akan motong duluan sebelum 280 detik ini sempat tercapai
+        // (Vercel "builds" config tidak bisa diatur maxDuration-nya). Lokal (node server.js)
+        // tidak kena batas ini sama sekali.
+        const timeoutId = setTimeout(() => controller.abort(), 280000);
+
+        const hf = new HfInference(hfKey);
+        const blob = await hf.textToVideo({
+            model: hfModel,
+            inputs: prompt,
+            provider: hfProvider,
+        }, { signal: controller.signal });
+
+        clearTimeout(timeoutId);
+
+        const buffer = Buffer.from(await blob.arrayBuffer());
+        const mimeType = blob.type || "video/mp4";
+        const b64 = buffer.toString("base64");
+        return { video: `data:${mimeType};base64,${b64}`, provider: "huggingface" };
+    } catch (e) {
+        const errorMsg = e?.name === 'AbortError' ? 'Request timeout (280s)' : (e?.message || String(e));
+        console.warn("HuggingFace video generation error:", errorMsg, "| errorName:", e?.name);
+        if (e?.cause) console.warn("  Cause:", e.cause);
+        return null;
+    }
+}
+
 async function callReplicateImage(prompt) {
     const repToken = process.env.REPLICATE_API_TOKEN;
     const repVersion = process.env.REPLICATE_MODEL_VERSION;
@@ -379,11 +422,12 @@ function isImageIntent(text) {
     // Hindari false-positive untuk kata "gambar" di konteks selain perintah gambar
     // (tetap cukup longgar, tapi tidak terlalu agresif).
     const negativeKeywords = [
-        'gambarnya',
+        'gambarnya', // biasanya masih bisa, tapi biar lebih aman
         'gambarku', 'gambarkah'
     ];
 
     if (negativeKeywords.some(k => t.includes(k))) {
+        // Kalau ada frasa perintah gambar, tetap dianggap intent.
         const positiveOverride = [
             'buat gambar', 'buat ilustrasi', 'generate image', 'create image', 'buat poster',
             'buat logo', 'draw', 'paint', 'sketsa', 'ilustrasi', 'gambarkan', 'render', 'buat foto', 'synthesize image', 'tolong'
@@ -392,11 +436,13 @@ function isImageIntent(text) {
     }
 
     const patterns = [
+        // Frasa perintah gambar (Indonesia/English)
         /buat\s+gambar/g,
         /buat\s+(ilustrasi|poster|logo)/g,
         /(generate|create)\s+image/g,
         /generate\s+(a\s+)?picture/g,
 
+        // Kata kunci gambar
         /\bgambar\b/g,
         /\bilustrasi\b/g,
         /\bposter\b/g,
@@ -409,12 +455,64 @@ function isImageIntent(text) {
         /\bbuat\s+foto\b/g,
         /\bsynthesize\s+image\b/g,
 
+        // Pola permintaan: "tolong ... gambar" / "bikin ... logo" / "buatkan ..."
         /(tolong|bikin|buatkan)\s+.*\b(gambar|ilustrasi|poster|logo|foto)\b/g,
     ];
 
     return patterns.some(re => re.test(t));
 }
 
+/**
+ * Detect if a user text likely requests video generation.
+ */
+function isVideoIntent(text) {
+    if (!text) return false;
+    const t = String(text).toLowerCase().trim();
+
+    const patterns = [
+        /buat\s+video/g,
+        /buatkan\s+video/g,
+        /bikin\s+video/g,
+        /(generate|create)\s+video/g,
+        /\bvideo\b/g,
+        /\banimasikan\b/g,
+        /\banimasi\b/g,
+        /(tolong|bikin|buatkan)\s+.*\bvideo\b/g,
+    ];
+
+    return patterns.some(re => re.test(t));
+}
+
+// Endpoint untuk test koneksi text-to-video ke Hugging Face
+app.get('/test-hf-video', async (req, res) => {
+    const hfKey = process.env.HUGGINGFACE_API_KEY;
+    const hfModel = process.env.HF_VIDEO_MODEL || "Wan-AI/Wan2.2-TI2V-5B";
+    const hfProvider = process.env.HF_VIDEO_PROVIDER || "fal-ai";
+
+    if (!hfKey) {
+        return res.json({ ok: false, error: "HUGGINGFACE_API_KEY tidak ditemukan di .env", apiKeyPresent: false, model: hfModel, provider: hfProvider });
+    }
+
+    try {
+        console.log(`🧪 Testing HF text-to-video: model="${hfModel}", provider="${hfProvider}"`);
+        const result = await callHuggingFaceVideo("a cat walking on green grass, short clip");
+        if (result && result.video) {
+            return res.json({ ok: true, apiKeyPresent: true, model: hfModel, provider: hfProvider, videoPreviewLength: result.video.length });
+        }
+        res.json({ ok: false, error: "Tidak ada video yang dihasilkan, cek log server untuk detail error.", apiKeyPresent: true, model: hfModel, provider: hfProvider });
+    } catch (e) {
+        res.json({
+            ok: false,
+            error: e?.message || String(e),
+            errorName: e?.name,
+            apiKeyPresent: true,
+            model: hfModel,
+            provider: hfProvider
+        });
+    }
+});
+
+// Endpoint untuk test koneksi ke Hugging Face
 app.get('/test-hf', async (req, res) => {
     const hfKey = process.env.HUGGINGFACE_API_KEY;
     const hfModel = process.env.HF_IMAGE_MODEL || "Tongyi-MAI/Z-Image-Turbo";
@@ -443,17 +541,48 @@ app.get('/test-hf', async (req, res) => {
     }
 });
 
+// Endpoint utama dengan pemilihan model
 app.post('/chat', async (req, res) => {
     const { message, context, image, model } = req.body; // model bisa 'groq' atau 'gemini'
     
+    // Default ke groq jika tidak ditentukan
     let selectedModel = model || 'groq';
 
     try {
+        // Video dicek lebih dulu & cuma dari teks (belum dukung image-to-video).
+        const wantsVideo = !image && isVideoIntent(message);
+        if (wantsVideo) {
+            console.log('🎬 Video generation path triggered');
+
+            if (!process.env.HUGGINGFACE_API_KEY) {
+                console.warn('❌ HUGGINGFACE_API_KEY tidak ditemukan');
+                return res.json({
+                    reply: 'Maaf, pembuatan video hanya didukung lewat Hugging Face. Silakan atur HUGGINGFACE_API_KEY di .env.',
+                    modelUsed: 'huggingface-video-unavailable'
+                });
+            }
+
+            console.log('🟡 Mencoba Hugging Face video provider', process.env.HF_VIDEO_MODEL || 'Wan-AI/Wan2.2-TI2V-5B');
+            const hfVideoResult = await callHuggingFaceVideo(message || '');
+            if (hfVideoResult && hfVideoResult.video) {
+                console.log('✅ Hugging Face video generated successfully');
+                return res.json({ reply: 'Video selesai dibuat.', video: hfVideoResult.video, modelUsed: 'huggingface-video' });
+            }
+
+            console.warn('❌ Hugging Face video provider returned null/empty');
+            return res.json({
+                reply: 'Maaf, pembuatan video gagal. Bisa jadi prosesnya kelamaan (timeout), kuota/saldo provider habis, atau konfigurasi HF_VIDEO_MODEL/HF_VIDEO_PROVIDER salah. Cek log server untuk detail.',
+                modelUsed: 'huggingface-video-error'
+            });
+        }
+
+        // If user provided an image or wants an image from text intent, attempt image generation first
         const wantsImage = Boolean(image) || isImageIntent(message);
         console.log(`📨 Chat request: model=${selectedModel}, hasImage=${Boolean(image)}, isImageIntent=${isImageIntent(message)}, wantsImage=${wantsImage}, message="${message?.slice(0, 50)}..."`);
         
         if (wantsImage) {
             console.log('🎨 Image generation path triggered');
+            // If user uploaded an image, use Gemini vision (callGemini handles inlineData)
             if (image) {
                 try {
                     const geminiReply = await callGemini(message, context, image);
@@ -500,6 +629,8 @@ app.post('/chat', async (req, res) => {
                     throw geminiError;
                 }
             }
+        } else if (selectedModel === 'gpt-oss') {
+            replyText = await callGroq(message, context, image, 'openai/gpt-oss-120b');
         } else {
             replyText = await callGroq(message, context, image);
         }
@@ -511,7 +642,8 @@ app.post('/chat', async (req, res) => {
 
     } catch (error) {
         console.error(`Error dengan ${selectedModel}:`, error);
-
+        
+        // Fallback: coba model lain jika satu gagal
         try {
             console.log(`⚠️ ${selectedModel} gagal, fallback ke model lain...`);
             const fallbackModel = selectedModel === 'groq' ? 'gemini' : 'groq';
@@ -536,12 +668,14 @@ app.post('/chat', async (req, res) => {
     }
 });
 
+// Endpoint untuk cek kedua model (testing)
 app.get('/models/status', async (req, res) => {
     const status = {
         groq: { available: false, message: '' },
         gemini: { available: false, message: '' }
     };
-
+    
+    // Test Groq
     try {
         await callGroq("Ping", null, null);
         status.groq.available = true;
@@ -549,7 +683,8 @@ app.get('/models/status', async (req, res) => {
     } catch (e) {
         status.groq.message = `❌ ${e.message}`;
     }
-
+    
+    // Test Gemini
     try {
         await callGemini("Ping", null, null);
         status.gemini.available = true;

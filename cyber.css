@@ -303,6 +303,14 @@ flex: 1;
     cursor: zoom-in;
 }
 
+.chat-video-wrapper video {
+    width: 280px;
+    max-width: 100%;
+    border-radius: 10px;
+    display: block;
+    background: #000;
+}
+
 .chat-image-download {
     position: absolute;
     top: 8px;
@@ -615,6 +623,87 @@ flex: 1;
     word-wrap: break-word;
     line-height: 1.8;
     padding: 5px 0;
+}
+
+/* Inline code: `seperti ini` di tengah kalimat */
+.inline-code {
+    background: rgba(0, 0, 0, 0.08);
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.85em;
+}
+
+/* Kotak blok kode bergaya seperti code editor (header + body) */
+.code-block-wrapper {
+    background: #0d1117;
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 10px 0;
+    max-width: 100%;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.code-block-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: #161b22;
+    color: #c9d1d9;
+    font-size: 0.8rem;
+    font-weight: 500;
+    font-family: 'Poppins', sans-serif;
+}
+
+.code-block-lang {
+    text-transform: capitalize;
+    opacity: 0.85;
+}
+
+.code-block-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.code-block-btn {
+    background: transparent;
+    border: none;
+    color: #c9d1d9;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    transition: background 0.2s ease;
+}
+
+.code-block-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.code-block-btn .material-symbols-outlined {
+    font-size: 18px;
+    padding: 0;
+    margin: 0;
+    color: #c9d1d9;
+}
+
+.code-block-wrapper pre {
+    margin: 0;
+    padding: 16px;
+    overflow-x: auto;
+}
+
+.code-block-wrapper pre code.hljs {
+    background: transparent !important;
+    padding: 0 !important;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    white-space: pre;
 }
 
 #welcome-screen img {
