@@ -553,12 +553,12 @@ function hideTypingIndicator() {
     if (el) el.remove();
 }
 
-// firebase.auth().onAuthStateChanged((user) => {
-//     if (user) {
-//         document.getElementById('login-btn').innerHTML = `<img src="${user.photoURL}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
-//         if (!isLoaded) { isLoaded = true; muatRiwayatChat(); tampilkanDaftarSidebar(); }
-//     } else { window.location.href = "login.html"; }
-// });
+firebase.auth().onAuthStateChanged((user) => {
+    if (user) {
+        document.getElementById('login-btn').innerHTML = `<img src="${user.photoURL}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+        if (!isLoaded) { isLoaded = true; muatRiwayatChat(); tampilkanDaftarSidebar(); }
+    } else { window.location.href = "login.html"; }
+});
 
 window.muatRiwayatChat = function() {
     const user = firebase.auth().currentUser;
