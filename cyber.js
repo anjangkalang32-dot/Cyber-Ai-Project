@@ -29,6 +29,55 @@ const SB_URL = 'https://oatgbiamflsvppykohvo.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hdGdiaWFtZmxzdnBweWtvaHZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNTk5NjMsImV4cCI6MjA5MjkzNTk2M30.Nb8dPo6P_GOW6qfLn2PMC1YBJ7hevseGvGW2aGBNgGI'; 
 const supabaseClient = supabase.createClient(SB_URL, SB_KEY);
 
+// Nama bucket Supabase Storage tempat gambar (hasil AI maupun upload user) disimpan.
+// GANTI string ini kalau nama bucket kamu beda (cek di Supabase Dashboard > Storage).
+const IMAGE_BUCKET = 'ai_galery';
+
+// Ubah data URL (base64) jadi Blob, perlu buat di-upload ke Supabase Storage.
+async function dataUrlToBlob(dataUrl) {
+    const res = await fetch(dataUrl);
+    return await res.blob();
+}
+
+function getExtensionFromDataUrl(dataUrl) {
+    const match = dataUrl.match(/^data:image\/([a-zA-Z0-9.+-]+);base64,/);
+    let ext = match ? match[1] : 'png';
+    if (ext === 'jpeg') ext = 'jpg';
+    return ext;
+}
+
+// Upload satu gambar (data URL) ke Supabase Storage, balikin URL publiknya.
+// Kalau gagal (misal belum login/RLS nolak), balikin null -- pemanggil harus
+// siap handle null ini (skip simpan field gambar, jangan sampai gagal total).
+async function uploadImageToSupabase(dataUrl, folderPath) {
+    if (!dataUrl) return null;
+    try {
+        const blob = await dataUrlToBlob(dataUrl);
+        const ext = getExtensionFromDataUrl(dataUrl);
+        const filePath = `${folderPath}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+        const { error: uploadError } = await supabaseClient
+            .storage
+            .from(IMAGE_BUCKET)
+            .upload(filePath, blob, { contentType: blob.type || `image/${ext}`, upsert: false });
+
+        if (uploadError) {
+            console.error('Gagal upload gambar ke Supabase Storage:', uploadError.message || uploadError);
+            return null;
+        }
+
+        const { data: publicUrlData } = supabaseClient
+            .storage
+            .from(IMAGE_BUCKET)
+            .getPublicUrl(filePath);
+
+        return publicUrlData?.publicUrl || null;
+    } catch (err) {
+        console.error('Gagal proses upload gambar:', err);
+        return null;
+    }
+}
+
 if (uploadBtn && fileInput) {
     uploadBtn.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', function() {
@@ -119,13 +168,24 @@ async function sendMessage() {
         }
 
         if (user) {
+            // Upload gambar (kalau ada) ke Supabase Storage dulu, paralel biar cepat.
+            // Base64-nya sendiri TIDAK disimpan ke Firestore -- cuma URL publiknya,
+            // soalnya Firestore punya batas ukuran dokumen 1MB dan base64 gambar
+            // gampang banget mepet/lewat batas itu.
+            const folderPath = `${user.uid}/${currentChatId}`;
+            const [gambarUserUrl, gambarAiUrl] = await Promise.all([
+                uploadImageToSupabase(currentImage, folderPath),
+                uploadImageToSupabase(data.image, folderPath)
+            ]);
+
             await db.collection("riwayat_chat").add({
                 uid: user.uid,
                 chat_id: currentChatId,
                 judul_chat: localStorage.getItem('currentChatTitle') || "Chat Baru",
                 pesan: text, 
-                gambarUrl: currentImage, 
+                gambarUrl: gambarUserUrl, 
                 jawaban: data.reply,
+                gambarAiUrl: gambarAiUrl,
                 waktu: firebase.firestore.FieldValue.serverTimestamp()
             });
 if (typeof window.tampilkanDaftarSidebar === "function") {
@@ -318,7 +378,7 @@ window.muatRiwayatChat = function() {
                 snap.forEach((doc) => {
                     const d = doc.data();
                     appendMessage('user', d.pesan, d.gambarUrl);
-                    if (d.jawaban) appendMessage('ai', d.jawaban);
+                    if (d.jawaban) appendMessage('ai', d.jawaban, d.gambarAiUrl);
                 });
             })
             .catch(err => console.error("Error muat riwayat:", err));

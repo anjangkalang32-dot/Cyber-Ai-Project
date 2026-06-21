@@ -29,7 +29,6 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const PORT = process.env.PORT || 3000;
 
-// System prompt yang sama untuk kedua model
 const systemPrompt = `Kamu adalah Nexus AI Beta Edition, asisten cerdas buatan Anjang Kalang.
 
 ATURAN FORMAT WAJIB (DITURUTI ATAU ERROR):
@@ -53,7 +52,6 @@ PENTING:
 - HANYA gunakan baris baru (Enter) jika kamu menjawab soal, memberikan langkah-langkah, atau membuat daftar. 
 - Gunakan format angka (1., 2., 3.) untuk jawaban soal agar sistemku bisa mendeteksinya.`;
 
-// Fungsi untuk memanggil Groq
 async function callGroq(message, context, image) {
     const messagesForAI = [
         { role: "system", content: systemPrompt }
@@ -381,12 +379,11 @@ function isImageIntent(text) {
     // Hindari false-positive untuk kata "gambar" di konteks selain perintah gambar
     // (tetap cukup longgar, tapi tidak terlalu agresif).
     const negativeKeywords = [
-        'gambarnya', // biasanya masih bisa, tapi biar lebih aman
+        'gambarnya',
         'gambarku', 'gambarkah'
     ];
 
     if (negativeKeywords.some(k => t.includes(k))) {
-        // Kalau ada frasa perintah gambar, tetap dianggap intent.
         const positiveOverride = [
             'buat gambar', 'buat ilustrasi', 'generate image', 'create image', 'buat poster',
             'buat logo', 'draw', 'paint', 'sketsa', 'ilustrasi', 'gambarkan', 'render', 'buat foto', 'synthesize image', 'tolong'
@@ -395,13 +392,11 @@ function isImageIntent(text) {
     }
 
     const patterns = [
-        // Frasa perintah gambar (Indonesia/English)
         /buat\s+gambar/g,
         /buat\s+(ilustrasi|poster|logo)/g,
         /(generate|create)\s+image/g,
         /generate\s+(a\s+)?picture/g,
 
-        // Kata kunci gambar
         /\bgambar\b/g,
         /\bilustrasi\b/g,
         /\bposter\b/g,
@@ -414,14 +409,12 @@ function isImageIntent(text) {
         /\bbuat\s+foto\b/g,
         /\bsynthesize\s+image\b/g,
 
-        // Pola permintaan: "tolong ... gambar" / "bikin ... logo" / "buatkan ..."
         /(tolong|bikin|buatkan)\s+.*\b(gambar|ilustrasi|poster|logo|foto)\b/g,
     ];
 
     return patterns.some(re => re.test(t));
 }
 
-// Endpoint untuk test koneksi ke Hugging Face
 app.get('/test-hf', async (req, res) => {
     const hfKey = process.env.HUGGINGFACE_API_KEY;
     const hfModel = process.env.HF_IMAGE_MODEL || "Tongyi-MAI/Z-Image-Turbo";
@@ -450,21 +443,17 @@ app.get('/test-hf', async (req, res) => {
     }
 });
 
-// Endpoint utama dengan pemilihan model
 app.post('/chat', async (req, res) => {
     const { message, context, image, model } = req.body; // model bisa 'groq' atau 'gemini'
     
-    // Default ke groq jika tidak ditentukan
     let selectedModel = model || 'groq';
 
     try {
-        // If user provided an image or wants an image from text intent, attempt image generation first
         const wantsImage = Boolean(image) || isImageIntent(message);
         console.log(`📨 Chat request: model=${selectedModel}, hasImage=${Boolean(image)}, isImageIntent=${isImageIntent(message)}, wantsImage=${wantsImage}, message="${message?.slice(0, 50)}..."`);
         
         if (wantsImage) {
             console.log('🎨 Image generation path triggered');
-            // If user uploaded an image, use Gemini vision (callGemini handles inlineData)
             if (image) {
                 try {
                     const geminiReply = await callGemini(message, context, image);
@@ -522,8 +511,7 @@ app.post('/chat', async (req, res) => {
 
     } catch (error) {
         console.error(`Error dengan ${selectedModel}:`, error);
-        
-        // Fallback: coba model lain jika satu gagal
+
         try {
             console.log(`⚠️ ${selectedModel} gagal, fallback ke model lain...`);
             const fallbackModel = selectedModel === 'groq' ? 'gemini' : 'groq';
@@ -548,14 +536,12 @@ app.post('/chat', async (req, res) => {
     }
 });
 
-// Endpoint untuk cek kedua model (testing)
 app.get('/models/status', async (req, res) => {
     const status = {
         groq: { available: false, message: '' },
         gemini: { available: false, message: '' }
     };
-    
-    // Test Groq
+
     try {
         await callGroq("Ping", null, null);
         status.groq.available = true;
@@ -563,8 +549,7 @@ app.get('/models/status', async (req, res) => {
     } catch (e) {
         status.groq.message = `❌ ${e.message}`;
     }
-    
-    // Test Gemini
+
     try {
         await callGemini("Ping", null, null);
         status.gemini.available = true;
