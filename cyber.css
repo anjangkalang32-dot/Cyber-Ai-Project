@@ -102,6 +102,12 @@ flex: 1;
     flex-direction: column;
     gap: 8px;
 }
+/* Bubble yang isinya ada gambar/video/dokumen: radius wajar (bukan pill 1000px)
+   supaya nggak jadi oval raksasa yang nyatu sama background halaman. */
+.user-msg.has-media {
+    border-radius: 22px;
+    padding: 10px;
+}
 .ai-msg {
     align-self: flex-start;
     background: transparent;
@@ -125,43 +131,100 @@ flex: 1;
     letter-spacing: 1px;
 }
 .input-area {
-    padding: 20px;
+    padding: 10px 20px 20px;
     display: flex;
-    gap: 10px;
-    align-items: center;
+    justify-content: center;
 }
+
+/* Kotak komposer tunggal ala Gemini: satu kartu putih yang membungkus
+   preview lampiran, input teks, dan toolbar (upload, model picker, kirim). */
+.composer {
+    width: 100%;
+    max-width: 820px;
+    background: #ffffff;
+    border-radius: 28px;
+    border: 1px solid rgba(13, 25, 50, 0.06);
+    box-shadow: 0 10px 30px rgba(13, 25, 50, 0.12);
+    display: flex;
+    flex-direction: column;
+    padding: 8px 8px 6px;
+    transition: box-shadow 0.2s ease;
+}
+
+.composer:focus-within {
+    box-shadow: 0 12px 36px rgba(13, 25, 50, 0.16);
+}
+
+.composer-input {
+    border: none;
+    background: transparent;
+    width: 100%;
+    padding: 12px 16px 8px;
+    font-size: 1rem;
+    color: #1c2733;
+}
+
+.composer-input:focus {
+    outline: none;
+}
+
+.composer-input::placeholder {
+    color: #8a93a3;
+}
+
+.composer-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2px 4px 4px;
+}
+
+.composer-toolbar-left,
+.composer-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
 .model-picker {
     position: relative;
     display: flex;
     align-items: center;
 }
 #model-button {
-    border: 1px solid rgba(0, 0, 0, 0.12);
-    background: #ffffff;
-    color: #0d1117;
+    border: none;
+    background: transparent;
+    color: #444b57;
     border-radius: 999px;
-    padding: 0 14px;
-    min-width: 140px;
-    height: 60px;
+    padding: 8px 12px;
+    min-width: auto;
+    height: auto;
     display: inline-flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
+    gap: 8px;
     cursor: pointer;
-    font-weight: 600;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+    font-weight: 500;
+    font-size: 0.85rem;
+    box-shadow: none;
+    transition: background 0.2s ease;
+}
+#model-button i {
+    font-size: 0.7rem;
+    color: #8a93a3;
 }
 #model-button:hover {
-    transform: translateY(-1px);
+    background: rgba(13, 25, 50, 0.06);
+    transform: none;
 }
 .model-menu {
     position: absolute;
-    bottom: 70px;
+    bottom: 52px;
     left: 0;
     width: 220px;
     background: #ffffff;
-    border-radius: 24px;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.12);
+    border-radius: 20px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.14);
     padding: 8px 0;
     display: none;
     z-index: 100;
@@ -195,46 +258,38 @@ flex: 1;
     color: #6b7380;
     margin-top: 2px;
 }
-.user-text {
-    border-radius: 1000px;
-    background: #ffffff;
-    height: 60px;
-    display: flex;
-    gap: 10px;
-    width: calc(100% - 280px);
-    min-width: 180px;
-}
-#user-input {
-    border-radius: 1000px;
-    width: 95%;
-    background: transparent;
-    border: none;
-    padding: 0 20px;
-}
 
 #user-input:focus {
     outline: none;
 }
 
 #send-button {
-    background: #a9d5ff;
+    background: #4285f4;
+    color: #ffffff;
     border: none;
-    padding: 0 20px;
-    border-radius: 1000px;
+    border-radius: 50%;
     font-weight: bold;
     cursor: pointer;
-    transition: 0.3s;
-    width:60px;
-    height: 60px;
-    font-size: 1.2rem;
+    transition: 0.2s ease;
+    width: 40px;
+    height: 40px;
+    font-size: 1rem;
     display: inline-flex;
     justify-content: center;
     align-items: center;
+    flex-shrink: 0;
 }
 
 #send-button:hover {
+    background: #2f6fe0;
     transform: scale(1.05);
-    box-shadow: 0 0 15px #00d9ff;
+    box-shadow: 0 4px 14px rgba(66, 133, 244, 0.4);
+}
+
+#send-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
 }
 
 .loading-box {
@@ -264,26 +319,121 @@ flex: 1;
     }
 }
 #upload-btn {
-    background: #ffffff;
+    background: transparent;
     border: none;
-    padding: 0 20px;
-    border-radius: 1000px;
+    border-radius: 50%;
     font-weight: bold;
     cursor: pointer;
-    transition: 0.3s;
-    color: #000000;
-    margin-left: -15px;
-    width:60px;
-    height: 60px;
-    font-size: 1.2rem;
+    transition: background 0.2s ease, color 0.2s ease;
+    color: #444b57;
+    width: 40px;
+    height: 40px;
+    font-size: 1rem;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    flex-shrink: 0;
 }
 
 #upload-btn .material-symbols-outlined {
-    color: #000000;
+    color: inherit;
+    padding: 0;
 }
 
 #upload-btn:hover {
+    background: rgba(13, 25, 50, 0.06);
     outline: none;
+}
+
+/* Baris chip preview lampiran (gambar/dokumen), nempel di atas input teks,
+   di dalam kartu komposer. Netral & terang biar nyatu sama tema, bukan
+   kotak gelap hijau hacker yang lama. */
+.attachment-previews {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 8px 10px 0;
+}
+.attachment-previews:empty {
+    padding: 0;
+}
+
+.preview-chip {
+    position: relative;
+    align-items: center;
+    gap: 10px;
+    background: #f1f5fb;
+    border: 1px solid rgba(13, 25, 50, 0.08);
+    border-radius: 14px;
+    padding: 6px;
+    animation: previewPop 0.18s ease;
+}
+
+@keyframes previewPop {
+    from { opacity: 0; transform: scale(0.92); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+.preview-thumb {
+    width: 52px;
+    height: 52px;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #e2e8f5;
+    flex-shrink: 0;
+}
+.preview-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.preview-chip-doc {
+    padding: 8px 14px 8px 8px;
+    max-width: 260px;
+}
+.preview-doc-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: #e2e8f5;
+    color: #4285f4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+.preview-doc-name {
+    font-size: 0.82rem;
+    color: #1c2733;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 170px;
+}
+
+.preview-remove {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #444b57;
+    color: #ffffff;
+    border: 2px solid #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 10px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    transition: background 0.2s ease;
+}
+.preview-remove:hover {
+    background: #d93025;
 }
 .message img {
     max-width: 100%;
@@ -293,22 +443,56 @@ flex: 1;
     display: block;
 }
 
-/* Wrapper gambar chat: bikin tombol download bisa diposisikan di atas gambar */
+/* Wrapper gambar chat: bikin tombol download bisa diposisikan di atas gambar.
+   Dikasih background+padding sendiri (kartu gelap) biar gambar punya area yang
+   jelas kelihatan batasnya, nggak nyatu sama warna bubble/background chat. */
 .chat-image-wrapper {
     position: relative;
     display: inline-block;
+    background: #0d1117;
+    padding: 6px;
+    border-radius: 16px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
 }
 
 .chat-image-wrapper img {
     cursor: zoom-in;
+    border-radius: 12px;
+    margin-bottom: 0;
+}
+
+.chat-video-wrapper {
+    background: #0d1117;
+    padding: 6px;
+    border-radius: 16px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    display: inline-block;
 }
 
 .chat-video-wrapper video {
     width: 280px;
     max-width: 100%;
-    border-radius: 10px;
+    border-radius: 12px;
     display: block;
     background: #000;
+}
+
+/* Chip nama file dokumen (PDF/Word/Excel/dll) yang diupload user di chat bubble */
+.chat-document-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #0d1117;
+    color: #00ff00;
+    padding: 8px 14px;
+    border-radius: 14px;
+    font-size: 0.82rem;
+    max-width: 240px;
+}
+.chat-document-chip span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .chat-image-download {
@@ -464,46 +648,34 @@ flex: 1;
     }
 
     .input-area {
-        display: flex;
-        padding: 14px;
-        gap: 10px;
-        background: rgba(255,255,255,0.95);
+        padding: 10px 12px 16px;
         position: fixed;
         left: 0;
         right: 0;
         bottom: 0;
-        border-top: 1px solid rgba(0,0,0,0.08);
-        box-shadow: 0 -10px 30px rgba(0,0,0,0.1);
         z-index: 60;
-        justify-content: center;
-        border-radius: 1000px;
+        background: transparent;
     }
 
-    .user-text {
-        width: calc(100% - 72px);
-        margin-left: 0;
-        height: 58px;
-        border-radius: 1000px;
+    .composer {
+        max-width: 100%;
+        box-shadow: 0 -4px 24px rgba(13, 25, 50, 0.14);
     }
 
-    #user-input {
-        height: 100%;
+    .composer-input {
         font-size: 15px;
-        padding: 0 18px;
-        border-radius: 1000px;
+        padding: 10px 14px 6px;
     }
 
     #send-button {
-        width: 58px;
-        height: 58px;
-        padding: 0;
-        font-size: 1.2rem;
+        width: 38px;
+        height: 38px;
+        font-size: 0.95rem;
     }
 
     #upload-btn {
-        width: 58px;
-        height: 58px;
-        padding: 0;
+        width: 38px;
+        height: 38px;
     }
 
     .message {
@@ -748,4 +920,53 @@ flex: 1;
 @keyframes bounceDots{
     0%, 80%, 100% { transform: translateY(0); opacity: 0.45; }
     40% { transform: translateY(-8px); opacity: 1; }
+}
+/* Label teks di indikator loading (riset & nyusun jawaban) */
+.typing-label {
+    margin-left: 10px;
+    font-size: 0.8rem;
+    color: #555;
+    font-style: italic;
+}
+
+/* Daftar sumber hasil riset web (Tavily), ditaruh di bawah jawaban AI */
+.ai-sources {
+    margin-top: 4px;
+    padding-top: 8px;
+    border-top: 1px dashed rgba(0, 0, 0, 0.35);
+}
+.ai-sources-label {
+    font-size: 0.72rem;
+    color: #000000;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.ai-sources-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.ai-source-chip {
+    display: inline-block;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.72rem;
+    color: #000000;
+    background: #e6f0ff;
+    border: 1px solid #000000;
+    border-radius: 1000px;
+    padding: 4px 10px;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+.ai-source-chip:hover {
+    background: #89deff;
+    color: #000;
 }

@@ -29,6 +29,15 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const PORT = process.env.PORT || 3000;
 
+// ===== RAG (Retrieval-Augmented Generation) PAKAI TAVILY =====
+// Tavily didesain khusus buat dipakai LLM/RAG: hasilnya sudah bersih (content per hasil)
+// dan bisa juga minta ringkasan jawaban langsung (include_answer).
+// Setup: daftar gratis di https://tavily.com -> dashboard -> copy API key -> isi TAVILY_API_KEY di .env.
+// Tier gratis: 1000 request/bulan.
+const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
+// Matikan tanpa hapus API key: set ENABLE_WEB_SEARCH=false di .env.
+const ENABLE_WEB_SEARCH = process.env.ENABLE_WEB_SEARCH !== 'false';
+
 // System prompt yang sama untuk kedua model
 const systemPrompt = `Kamu adalah Nexus AI Beta Edition, asisten cerdas buatan Anjang Kalang.
 
@@ -40,6 +49,14 @@ ATURAN FORMAT WAJIB (DITURUTI ATAU ERROR):
 5. Gunakan format Markdown standar (**Bold**) untuk poin penting.
 
 GAYA BAHASA: Santai, gaul. 
+
+ATURAN BACA FILE:
+- Kalau ada blok "[ISI FILE TERLAMPIR: ...]" di pesan, itu adalah isi file (PDF/Word/Excel/CSV/teks) yang diupload user. Jawab berdasarkan isi file itu, jangan mengarang isi yang tidak ada di sana.
+- Kalau ada catatan "gagal membaca file" dari sistem, bilang terus terang ke user bahwa filenya tidak bisa kamu baca, jangan berasumsi atau mengarang isinya.
+
+ATURAN RISET WEB:
+- Kalau ada blok "[HASIL RISET WEB ...]" di pesan, itu adalah data pencarian terbaru dari internet. WAJIB pakai itu sebagai sumber utama untuk hal-hal yang sifatnya baru/berubah-ubah (berita, harga, jadwal, data terkini, dll), jangan mengarang fakta yang berlawanan dengan itu.
+- Kalau tidak ada blok riset web, atau hasilnya tidak relevan dengan pertanyaan, jawab pakai pengetahuanmu sendiri tapi bilang terus terang kalau kamu tidak punya data terbaru untuk hal yang sifatnya berubah-ubah.
 
 CONTOH FORMAT JAWABAN:
 1. **Jawaban A**
@@ -54,13 +71,17 @@ PENTING:
 - Gunakan format angka (1., 2., 3.) untuk jawaban soal agar sistemku bisa mendeteksinya.`;
 
 // Fungsi untuk memanggil Groq
-async function callGroq(message, context, image, modelName = "meta-llama/llama-4-scout-17b-16e-instruct") {
+async function callGroq(message, context, image, modelName = "meta-llama/llama-4-scout-17b-16e-instruct", extraContext = "") {
     const messagesForAI = [
         { role: "system", content: systemPrompt }
     ];
 
     if (context) {
         messagesForAI.push({ role: "user", content: `Memori Chat: ${context}` });
+    }
+
+    if (extraContext) {
+        messagesForAI.push({ role: "user", content: extraContext });
     }
 
     let userContent;
@@ -85,7 +106,7 @@ async function callGroq(message, context, image, modelName = "meta-llama/llama-4
 }
 
 // Fungsi untuk memanggil Gemini
-async function callGemini(message, context, image) {
+async function callGemini(message, context, image, extraContext = "") {
     let model;
     let result;
     // Use API model identifier (no spaces). Change here if your project uses another Gemini model id.
@@ -115,6 +136,9 @@ async function callGemini(message, context, image) {
         let fullPrompt = systemPrompt + "\n\n";
         if (context) {
             fullPrompt += `[MEMORI SEBELUMNYA: ${context}]\n\n`;
+        }
+        if (extraContext) {
+            fullPrompt += extraContext + "\n\n";
         }
         fullPrompt += message || "Halo";
         
@@ -483,6 +507,182 @@ function isVideoIntent(text) {
     return patterns.some(re => re.test(t));
 }
 
+// ===== RAG: RISET WEB PAKAI TAVILY =====
+
+/**
+ * Panggil Tavily Search API. Balikin { answer, results: [{title, url, content}] } atau null kalau gagal.
+ */
+async function tavilySearch(query, maxResults = 5) {
+    if (!TAVILY_API_KEY) {
+        console.warn('⚠️ TAVILY_API_KEY belum diatur di .env, skip riset web.');
+        return null;
+    }
+
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 detik, jangan sampai bikin chat lama nunggu
+
+        const resp = await fetch('https://api.tavily.com/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                api_key: TAVILY_API_KEY,
+                query: query,
+                search_depth: 'basic',
+                include_answer: true,
+                max_results: maxResults,
+            }),
+            signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (!resp.ok) {
+            const errBody = await resp.text();
+            console.warn('❌ Tavily API error:', resp.status, errBody.slice(0, 300));
+            return null;
+        }
+
+        const json = await resp.json();
+        const results = (json.results || []).map(r => ({
+            title: r.title,
+            url: r.url,
+            content: r.content,
+        }));
+
+        return { answer: json.answer || null, results };
+    } catch (e) {
+        const msg = e?.name === 'AbortError' ? 'Tavily timeout (10s)' : (e?.message || String(e));
+        console.warn('❌ Gagal riset web (Tavily):', msg);
+        return null;
+    }
+}
+
+// Ubah hasil Tavily jadi blok teks tambahan buat disuntik ke prompt AI.
+function formatTavilyForPrompt(query, tavilyData) {
+    if (!tavilyData || (!tavilyData.answer && (!tavilyData.results || tavilyData.results.length === 0))) {
+        return '';
+    }
+
+    let formatted = `\n\n[HASIL RISET WEB untuk "${query}" - dari Tavily, WAJIB dipakai sebagai acuan utama untuk hal yang sifatnya baru/berubah-ubah, jangan ngarang]\n`;
+
+    if (tavilyData.answer) {
+        formatted += `Ringkasan: ${tavilyData.answer}\n\n`;
+    }
+
+    (tavilyData.results || []).forEach((r, i) => {
+        formatted += `${i + 1}. ${r.title}\n   ${r.content}\n   Sumber: ${r.url}\n`;
+    });
+
+    formatted += '\nKalau hasil di atas memang relevan, dasarkan jawabanmu dari situ. Kalau tidak relevan/tidak cukup, bilang terang-terangan ke user kalau itu di luar hasil riset, jangan mengarang.';
+    return formatted;
+}
+
+/**
+ * Tentukan apakah pesan user butuh riset web dulu sebelum dijawab.
+ * Sapaan/obrolan kasual di-skip biar nggak buang kuota gratis (1000 request/bulan di Tavily).
+ */
+function needsResearch(text) {
+    if (!text) return false;
+    const t = String(text).toLowerCase().trim();
+
+    if (t.length < 3) return false;
+
+    const casualPatterns = [
+        /^(hai|halo|hello|hi+|hey|woi|pagi|siang|sore|malam)\b/,
+        /^(apa kabar|gimana kabar)/,
+        /^(makasih|terima kasih|thanks|thx|sip|mantap)\b/,
+        /^(oke|ok|baik|y|ya|iya)$/,
+        /^(siapa( kamu| anda)?( sih)?\??)$/,
+        /^(kamu siapa\??)$/,
+        /^(test|tes|ping)$/,
+    ];
+
+    return !casualPatterns.some(re => re.test(t));
+}
+
+// ===== BACA ISI FILE (PDF, Word, Excel/CSV, teks/kode, dll) =====
+// Butuh 3 library tambahan: pdf-parse (PDF), mammoth (.docx), xlsx (.xlsx/.xls).
+// Kalau belum di-install, fitur untuk format itu otomatis nonaktif (server tetap jalan,
+// cuma kasih warning di log) -- jalankan ini dulu di folder project:
+//   npm install pdf-parse mammoth xlsx
+async function extractTextFromDocument(file) {
+    if (!file || !file.data) return null;
+
+    const filename = file.filename || 'file';
+    const ext = filename.toLowerCase().split('.').pop();
+    const mime = String(file.mimeType || '').toLowerCase();
+
+    try {
+        const base64 = String(file.data).includes(',') ? file.data.split(',')[1] : file.data;
+        const buffer = Buffer.from(base64, 'base64');
+
+        // ---- PDF ----
+        if (mime === 'application/pdf' || ext === 'pdf') {
+            try {
+                const pdfParse = require('pdf-parse');
+                const result = await pdfParse(buffer);
+                return result.text;
+            } catch (e) {
+                console.warn('⚠️ Gagal baca PDF. Pastikan sudah jalankan "npm install pdf-parse". Detail:', e.message);
+                return null;
+            }
+        }
+
+        // ---- DOCX (Word baru) ----
+        if (mime.includes('wordprocessingml') || ext === 'docx') {
+            try {
+                const mammoth = require('mammoth');
+                const result = await mammoth.extractRawText({ buffer });
+                return result.value;
+            } catch (e) {
+                console.warn('⚠️ Gagal baca DOCX. Pastikan sudah jalankan "npm install mammoth". Detail:', e.message);
+                return null;
+            }
+        }
+
+        // ---- DOC (Word lama, format binary lawas, belum didukung) ----
+        if (ext === 'doc') {
+            console.warn('⚠️ Format .doc (Word lama) belum didukung. User perlu convert ke .docx atau .pdf.');
+            return null;
+        }
+
+        // ---- XLSX / XLS (Excel) -> di-extract per-sheet jadi teks CSV ----
+        if (mime.includes('spreadsheet') || ext === 'xlsx' || ext === 'xls') {
+            try {
+                const XLSX = require('xlsx');
+                const workbook = XLSX.read(buffer, { type: 'buffer' });
+                let out = '';
+                workbook.SheetNames.forEach((sheetName) => {
+                    out += `--- Sheet: ${sheetName} ---\n`;
+                    out += XLSX.utils.sheet_to_csv(workbook.Sheets[sheetName]) + '\n\n';
+                });
+                return out;
+            } catch (e) {
+                console.warn('⚠️ Gagal baca Excel. Pastikan sudah jalankan "npm install xlsx". Detail:', e.message);
+                return null;
+            }
+        }
+
+        // ---- Default: anggap teks biasa (txt, csv, json, md, kode .js/.py/.html, dll) ----
+        return buffer.toString('utf8');
+    } catch (e) {
+        console.warn('❌ Gagal proses file', filename, ':', e?.message || e);
+        return null;
+    }
+}
+
+// Potong isi file kalau kepanjangan, biar prompt ke AI nggak meledak ukurannya.
+function truncateText(text, maxChars = 15000) {
+    if (!text) return text;
+    if (text.length <= maxChars) return text;
+    return text.slice(0, maxChars) + `\n\n...[isi file dipotong, total ${text.length} karakter, cuma ${maxChars} karakter pertama yang dikirim ke AI]`;
+}
+
+// Bungkus isi file jadi blok teks yang disisipkan ke prompt AI.
+function formatDocumentForPrompt(filename, text) {
+    return `\n\n[ISI FILE TERLAMPIR: "${filename}"]\n${text}\n[AKHIR ISI FILE]\nJawab pertanyaan user berdasarkan isi file di atas kalau relevan.`;
+}
+
 // Endpoint untuk test koneksi text-to-video ke Hugging Face
 app.get('/test-hf-video', async (req, res) => {
     const hfKey = process.env.HUGGINGFACE_API_KEY;
@@ -543,7 +743,7 @@ app.get('/test-hf', async (req, res) => {
 
 // Endpoint utama dengan pemilihan model
 app.post('/chat', async (req, res) => {
-    const { message, context, image, model } = req.body; // model bisa 'groq' atau 'gemini'
+    const { message, context, image, model, file } = req.body; // model bisa 'groq'/'gpt-oss'/'gemini', file = dokumen non-gambar (opsional)
     
     // Default ke groq jika tidak ditentukan
     let selectedModel = model || 'groq';
@@ -576,21 +776,39 @@ app.post('/chat', async (req, res) => {
             });
         }
 
-        // If user provided an image or wants an image from text intent, attempt image generation first
-        const wantsImage = Boolean(image) || isImageIntent(message);
-        console.log(`📨 Chat request: model=${selectedModel}, hasImage=${Boolean(image)}, isImageIntent=${isImageIntent(message)}, wantsImage=${wantsImage}, message="${message?.slice(0, 50)}..."`);
-        
-        if (wantsImage) {
-            console.log('🎨 Image generation path triggered');
-            // If user uploaded an image, use Gemini vision (callGemini handles inlineData)
-            if (image) {
-                try {
-                    const geminiReply = await callGemini(message, context, image);
-                    return res.json({ reply: geminiReply, modelUsed: 'gemini-vision' });
-                } catch (e) {
-                    console.warn('Gemini vision failed, akan mencoba Hugging Face image:', e.message);
+        // PENTING: ini dua hal yang BEDA dan harus dipisah total:
+        // 1) wantsImageAnalysis -> user UPLOAD gambar, minta dijelaskan/dianalisa (vision).
+        // 2) wantsImageGeneration -> user TIDAK upload gambar, minta dibuatkan gambar baru dari teks.
+        // Kalau digabung jadi satu flag, begitu vision gagal kode malah lanjut nganggep
+        // pertanyaan user sebagai prompt generate gambar baru (bug lama).
+        const wantsImageAnalysis = Boolean(image);
+        const wantsImageGeneration = !image && isImageIntent(message);
+        console.log(`📨 Chat request: model=${selectedModel}, hasImage=${Boolean(image)}, hasFile=${Boolean(file)}, isImageIntent=${isImageIntent(message)}, wantsImageAnalysis=${wantsImageAnalysis}, wantsImageGeneration=${wantsImageGeneration}, message="${message?.slice(0, 50)}..."`);
+
+        if (wantsImageAnalysis) {
+            console.log(`👁️ Image analysis (vision) path triggered, model dipilih: ${selectedModel}`);
+            try {
+                let visionReply;
+                if (selectedModel === 'gemini') {
+                    visionReply = await callGemini(message, context, image);
+                    return res.json({ reply: visionReply, modelUsed: 'gemini-vision' });
+                } else {
+                    // Groq & GPT-OSS sama-sama dilewatkan ke Llama 4 Scout di Groq,
+                    // karena itu yang vision-capable (gpt-oss-120b di Groq teks-only).
+                    visionReply = await callGroq(message, context, image, 'meta-llama/llama-4-scout-17b-16e-instruct');
+                    return res.json({ reply: visionReply, modelUsed: 'groq-vision' });
                 }
+            } catch (visionError) {
+                console.error('❌ Gagal menganalisa gambar:', visionError.message);
+                return res.json({
+                    reply: `Maaf Bosku, gagal menganalisa gambarnya. (Error: ${visionError.message})`,
+                    modelUsed: 'vision-error'
+                });
             }
+        }
+
+        if (wantsImageGeneration) {
+            console.log('🎨 Image generation path triggered');
 
             if (!process.env.HUGGINGFACE_API_KEY) {
                 console.warn('❌ HUGGINGFACE_API_KEY tidak ditemukan');
@@ -614,30 +832,63 @@ app.post('/chat', async (req, res) => {
             });
         }
 
+        // ===== BACA ISI FILE DULU (kalau user upload PDF/Word/Excel/teks, BUKAN gambar) =====
+        let documentContext = "";
+        if (file && file.data) {
+            console.log(`📄 Membaca file: ${file.filename} (${file.mimeType})`);
+            const extracted = await extractTextFromDocument(file);
+            if (extracted && extracted.trim()) {
+                documentContext = formatDocumentForPrompt(file.filename, truncateText(extracted));
+                console.log(`✅ Berhasil baca file, ${extracted.length} karakter`);
+            } else {
+                documentContext = `\n\n[Catatan untuk AI: user upload file "${file.filename}" tapi server gagal membaca isinya (format belum didukung, library belum di-install, atau filenya kosong). Bilang terus terang ke user soal ini, jangan mengarang isi filenya.]`;
+                console.warn('⚠️ Gagal extract isi file atau hasilnya kosong:', file.filename);
+            }
+        }
+
+        // ===== RAG: RISET WEB DULU PAKAI TAVILY (sebelum AI jawab) =====
+        let searchContext = "";
+        let searchSources = [];
+        if (ENABLE_WEB_SEARCH && needsResearch(message)) {
+            console.log('🔎 Riset web (Tavily) untuk:', message?.slice(0, 80));
+            const tavilyData = await tavilySearch(message);
+            if (tavilyData && (tavilyData.answer || (tavilyData.results && tavilyData.results.length > 0))) {
+                searchContext = formatTavilyForPrompt(message, tavilyData);
+                searchSources = (tavilyData.results || []).map(r => ({ title: r.title, link: r.url }));
+                console.log(`✅ Riset web dapat ${tavilyData.results?.length || 0} hasil${tavilyData.answer ? ' + ringkasan' : ''}`);
+            } else {
+                console.log('⚠️ Riset web tidak menghasilkan apa-apa, lanjut tanpa konteks tambahan.');
+            }
+        }
+
+        // Gabung isi dokumen + hasil riset web jadi satu konteks tambahan buat prompt AI.
+        const extraContext = [documentContext, searchContext].filter(Boolean).join('\n');
+
         let replyText;
         
         console.log(`📡 Menggunakan model: ${selectedModel.toUpperCase()}`);
         if (selectedModel === 'gemini') {
             try {
-                replyText = await callGemini(message, context, image);
+                replyText = await callGemini(message, context, image, extraContext);
             } catch (geminiError) {
                 if (isGeminiQuotaError(geminiError)) {
                     console.warn('Gemini quota exceeded, fallback ke Groq:', geminiError.message);
-                    replyText = await callGroq(message, context, image);
+                    replyText = await callGroq(message, context, image, undefined, extraContext);
                     selectedModel = 'groq';
                 } else {
                     throw geminiError;
                 }
             }
         } else if (selectedModel === 'gpt-oss') {
-            replyText = await callGroq(message, context, image, 'openai/gpt-oss-120b');
+            replyText = await callGroq(message, context, image, 'openai/gpt-oss-120b', extraContext);
         } else {
-            replyText = await callGroq(message, context, image);
+            replyText = await callGroq(message, context, image, undefined, extraContext);
         }
         
         res.json({ 
             reply: replyText,
-            modelUsed: selectedModel 
+            modelUsed: selectedModel,
+            sources: searchSources.length > 0 ? searchSources : undefined
         });
 
     } catch (error) {

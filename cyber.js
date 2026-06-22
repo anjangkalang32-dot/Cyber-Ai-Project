@@ -1,6 +1,7 @@
 let currentChatId = localStorage.getItem('activeChatId') || Date.now().toString();
 let isLoaded = false;
 let pendingImage = null;
+let pendingDocument = null; // { data: dataURL, filename, mimeType } -- buat PDF/Word/Excel/CSV/TXT/JSON
 
 const chatBox = document.getElementById('chat-box');
 const userInput = document.getElementById('user-input');
@@ -9,10 +10,19 @@ const fileInput = document.getElementById('file-input');
 const uploadBtn = document.getElementById('upload-btn'); 
 const previewContainer = document.getElementById('image-preview-container');
 const previewImg = document.getElementById('image-preview');
+const docPreviewContainer = document.getElementById('document-preview-container');
+const docPreviewName = document.getElementById('document-preview-name');
 const modelButton = document.getElementById('model-button');
 const modelMenu = document.getElementById('model-menu');
 const selectedModelLabel = document.getElementById('selected-model-label');
 let selectedModel = localStorage.getItem('selectedModel') || 'groq';
+
+// Ekstensi dokumen yang kontennya bisa dibaca server (bukan gambar).
+const DOCUMENT_EXTENSIONS = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'txt', 'json'];
+
+function getFileExtension(filename) {
+    return (filename.split('.').pop() || '').toLowerCase();
+}
 
 const firebaseConfig = {
   apiKey: "AIzaSyBFJSDfU9tpbzt08SLWWKTH0jvk7EuamJE",
@@ -82,38 +92,86 @@ if (uploadBtn && fileInput) {
     uploadBtn.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', function() {
         const file = this.files[0];
-        if (file) {
+        if (!file) return;
+
+        const isImage = file.type.startsWith('image/');
+        const ext = getFileExtension(file.name);
+
+        if (isImage) {
             if (file.size > 800000) { 
                 alert("Gambar kegedean Bosku, maksimal 800KB!");
+                fileInput.value = "";
                 return;
             }
+            cancelDocument(); // satu attachment aja per pesan, gambar atau dokumen
             const reader = new FileReader();
             reader.onload = (e) => {
                 pendingImage = e.target.result; 
                 previewImg.src = e.target.result;
                 previewContainer.style.display = 'flex'; 
-                uploadBtn.style.color = "#adff2f"; 
-                uploadBtn.innerHTML = '<span class="material-symbols-outlined">check_circle</span>';
+                uploadBtn.style.color = "#000000"; 
+                uploadBtn.innerHTML = '<i class="fa-solid fa-plus"></i>';
             };
             reader.readAsDataURL(file);
+            return;
         }
+
+        if (!DOCUMENT_EXTENSIONS.includes(ext)) {
+            alert(`Format ".${ext}" belum didukung Bosku. Yang bisa: gambar, PDF, Word (.doc/.docx), Excel (.xls/.xlsx), CSV, TXT, JSON.`);
+            fileInput.value = "";
+            return;
+        }
+
+        if (file.size > 8 * 1024 * 1024) { // 8MB, dokumen biasanya lebih besar dari gambar chat
+            alert("File kegedean Bosku, maksimal 8MB!");
+            fileInput.value = "";
+            return;
+        }
+
+        cancelImage(); // satu attachment aja per pesan, gambar atau dokumen
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            pendingDocument = {
+                data: e.target.result,
+                filename: file.name,
+                mimeType: file.type || `application/${ext}`
+            };
+            docPreviewName.textContent = file.name;
+            docPreviewContainer.style.display = 'flex';
+            uploadBtn.style.color = "#adff2f";
+            uploadBtn.innerHTML = '<span class="material-symbols-outlined">check_circle</span>';
+        };
+        reader.readAsDataURL(file);
     });
 }
 
 window.cancelImage = () => {
     pendingImage = null;
     previewContainer.style.display = 'none';
-    uploadBtn.style.color = "#000000";
-    uploadBtn.innerHTML = '<i class="fa-solid fa-plus"></i>';
-    fileInput.value = "";
+    if (!pendingDocument) {
+        uploadBtn.style.color = "#000000";
+        uploadBtn.innerHTML = '<i class="fa-solid fa-plus"></i>';
+        fileInput.value = "";
+    }
+};
+
+window.cancelDocument = () => {
+    pendingDocument = null;
+    docPreviewContainer.style.display = 'none';
+    if (!pendingImage) {
+        uploadBtn.style.color = "#000000";
+        uploadBtn.innerHTML = '<i class="fa-solid fa-plus"></i>';
+        fileInput.value = "";
+    }
 };
 
 async function sendMessage() {
     const text = userInput.value.trim();
     const user = firebase.auth().currentUser;
     const currentImage = pendingImage; 
+    const currentDocument = pendingDocument;
 
-    if (text === "" && !currentImage) return;
+    if (text === "" && !currentImage && !currentDocument) return;
 
     const originalBtn = sendBtn.innerHTML;
     sendBtn.innerHTML = '<span class="loading-box"></span>';
@@ -137,8 +195,9 @@ async function sendMessage() {
         } catch (err) { console.error("Gagal tarik memori:", err); }
     }
 
-    appendMessage('user', text, currentImage);
-    cancelImage(); 
+    appendMessage('user', text, currentImage, null, currentDocument ? currentDocument.filename : null);
+    cancelImage();
+    cancelDocument();
     userInput.value = "";
 
     showTypingIndicator();
@@ -151,13 +210,14 @@ async function sendMessage() {
                 message: text, 
                 context: contextData, 
                 image: currentImage,
+                file: currentDocument,
                 model: selectedModel
             }),
         });
         
         const data = await response.json();
         hideTypingIndicator();
-        appendMessage('ai', data.reply, data.image, data.video);
+        appendMessage('ai', data.reply, data.image, data.video, null, data.sources);
 
         if (user) {
             supabaseClient.from('ai_memories').insert([{ 
@@ -379,13 +439,23 @@ function renderAiTextContent(rawText) {
     return fragment;
 }
 
-function appendMessage(role, text, imageSrc = null, videoSrc = null) {
+function appendMessage(role, text, imageSrc = null, videoSrc = null, documentName = null, sources = null) {
     const chatBox = document.getElementById('chat-box');
     const msgDiv = document.createElement('div');
     msgDiv.className = `message ${role === 'user' ? 'user-msg' : 'ai-msg'}`;
 
+    // Kalau ada gambar/video/dokumen, bubble pakai sudut yang lebih wajar (bukan pill 1000px),
+    // soalnya pill ekstrem itu yang bikin background media "ketarik" jadi oval raksasa
+    // dan keliatan nyatu sama background chat.
+    if (imageSrc || videoSrc || documentName) {
+        msgDiv.classList.add('has-media');
+    }
+
     if (role === 'ai') {
         msgDiv.appendChild(renderAiTextContent(text));
+        if (sources && sources.length > 0) {
+            msgDiv.appendChild(buildSourcesElement(sources));
+        }
     } else {
         const div = document.createElement('div');
         div.className = 'msg-content';
@@ -402,11 +472,54 @@ function appendMessage(role, text, imageSrc = null, videoSrc = null) {
     if (imageSrc) {
         msgDiv.prepend(buildChatImageElement(imageSrc));
     }
+    if (documentName) {
+        msgDiv.prepend(buildChatDocumentChip(documentName));
+    }
 
     chatBox.appendChild(msgDiv);
     
     scrollToBottom(); 
 }
+
+// Daftar link sumber hasil riset web (Tavily), ditaruh di bawah jawaban AI.
+function buildSourcesElement(sources) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'ai-sources';
+
+    const label = document.createElement('div');
+    label.className = 'ai-sources-label';
+    label.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Sumber riset web:';
+    wrapper.appendChild(label);
+
+    const list = document.createElement('div');
+    list.className = 'ai-sources-list';
+    sources.forEach((src) => {
+        const a = document.createElement('a');
+        a.href = src.link;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.className = 'ai-source-chip';
+        a.textContent = src.title || src.link;
+        list.appendChild(a);
+    });
+    wrapper.appendChild(list);
+
+    return wrapper;
+}
+
+// Chip kecil penanda "file ini yang diupload" di bubble user (bukan thumbnail, cuma nama file).
+function buildChatDocumentChip(filename) {
+    const chip = document.createElement('div');
+    chip.className = 'chat-document-chip';
+    const icon = document.createElement('i');
+    icon.className = 'fa-solid fa-file-lines';
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = filename;
+    chip.appendChild(icon);
+    chip.appendChild(nameSpan);
+    return chip;
+}
+
 
 // Bikin elemen video chat: tag <video> dengan kontrol native, plus tombol download kecil
 // di pojok kanan atas (konsisten dengan gambar). Nggak pakai lightbox karena <video>
@@ -543,7 +656,7 @@ function showTypingIndicator() {
     const div = document.createElement('div');
     div.id = typingId;
     div.className = 'message ai-msg typing';
-    div.innerHTML = `<div class="typing-indicator"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>`;
+    div.innerHTML = `<div class="typing-indicator"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div><span class="typing-label"></span>`;
     chatBox.appendChild(div);
     scrollToBottom();
 }
@@ -553,12 +666,12 @@ function hideTypingIndicator() {
     if (el) el.remove();
 }
 
-firebase.auth().onAuthStateChanged((user) => {
-    if (user) {
-        document.getElementById('login-btn').innerHTML = `<img src="${user.photoURL}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
-        if (!isLoaded) { isLoaded = true; muatRiwayatChat(); tampilkanDaftarSidebar(); }
-    } else { window.location.href = "login.html"; }
-});
+// firebase.auth().onAuthStateChanged((user) => {
+//     if (user) {
+//         document.getElementById('login-btn').innerHTML = `<img src="${user.photoURL}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+//         if (!isLoaded) { isLoaded = true; muatRiwayatChat(); tampilkanDaftarSidebar(); }
+//     } else { window.location.href = "login.html"; }
+// });
 
 window.muatRiwayatChat = function() {
     const user = firebase.auth().currentUser;

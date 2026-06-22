@@ -76,40 +76,56 @@ account_circle
                 </div>
                 <p></p>
             </div>
-            <div id="image-preview-container" style="display: none; padding: 10px; background: #1a1f26; border-top: 1px solid #00ff00; align-items: center; gap: 10px;">
-    <img id="image-preview" src="" style="height: 50px; border-radius: 5px; border: 1px solid #00ff00;">
-    <span style="color: #00ff00; font-size: 12px;">Gambar siap kirim!</span>
-    <button onclick="cancelImage()" style="background: none; border: none; color: #ff4444; cursor: pointer;"><i class="fas fa-times-circle"></i></button>
-</div>
         </div>
-        
-        <div class="input-area">  
-            <div class="model-picker">
-                <button id="model-button" type="button" aria-haspopup="true" aria-expanded="false">
-                    <span id="selected-model-label">Groq</span>
-                    <i class="fa-solid fa-chevron-down"></i>
-                </button>
-                <div id="model-menu" class="model-menu">
-                    <button class="model-option selected" type="button" data-model="groq">
-                        <strong>Groq</strong>
-                        <div class="model-subtitle">Llama 4 Scout</div>
-                    </button>
-                    <button class="model-option" type="button" data-model="gpt-oss">
-                        <strong>OpenAI GPT-OSS</strong>
-                        <div class="model-subtitle">openai/gpt-oss-120b</div>
-                    </button>
-                    <button class="model-option" type="button" data-model="gemini">
-                        <strong>Gemini</strong>
-                        <div class="model-subtitle">3.5 Flash</div>
-                    </button>
+
+        <div class="input-area">
+            <div class="composer">
+                <div id="attachment-previews" class="attachment-previews">
+                    <div id="image-preview-container" class="preview-chip preview-chip-image" style="display: none;">
+                        <div class="preview-thumb">
+                            <img id="image-preview" src="" alt="Preview gambar">
+                        </div>
+                        <button type="button" class="preview-remove" onclick="cancelImage()" aria-label="Hapus gambar"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <div id="document-preview-container" class="preview-chip preview-chip-doc" style="display: none;">
+                        <div class="preview-doc-icon"><i class="fa-solid fa-file-lines"></i></div>
+                        <span id="document-preview-name" class="preview-doc-name"></span>
+                        <button type="button" class="preview-remove" onclick="cancelDocument()" aria-label="Hapus dokumen"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                </div>
+
+                <input type="text" id="user-input" class="composer-input" placeholder="Tanya Whale Shark...">
+
+                <div class="composer-toolbar">
+                    <div class="composer-toolbar-left">
+                        <button id="upload-btn" type="button" aria-label="Lampirkan file"><i class="fa-solid fa-plus"></i></button>
+                        <input type="file" id="file-input" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.json" style="display: none;">
+                    </div>
+                    <div class="composer-toolbar-right">
+                        <div class="model-picker">
+                            <button id="model-button" type="button" aria-haspopup="true" aria-expanded="false">
+                                <span id="selected-model-label">Groq</span>
+                                <i class="fa-solid fa-chevron-down"></i>
+                            </button>
+                            <div id="model-menu" class="model-menu">
+                                <button class="model-option selected" type="button" data-model="groq">
+                                    <strong>Groq</strong>
+                                    <div class="model-subtitle">Llama 4 Scout</div>
+                                </button>
+                                <button class="model-option" type="button" data-model="gpt-oss">
+                                    <strong>OpenAI GPT-OSS</strong>
+                                    <div class="model-subtitle">openai/gpt-oss-120b</div>
+                                </button>
+                                <button class="model-option" type="button" data-model="gemini">
+                                    <strong>Gemini</strong>
+                                    <div class="model-subtitle">3.5 Flash</div>
+                                </button>
+                            </div>
+                        </div>
+                        <button id="send-button" aria-label="Kirim pesan"><i class="fa-solid fa-arrow-up"></i></button>
+                    </div>
                 </div>
             </div>
-            <div class="user-text">
-                <input type="text" id="user-input" placeholder="Ketik pesan atau upload gambar...">
-                <input type="file" id="file-input" accept="image/*" style="display: none;">    
-                <button id="upload-btn" type="button"><i class="fa-solid fa-plus"></i></button>
-            </div>
-            <button id="send-button"><i class="fa-solid fa-arrow-up"></i></button>
         </div>
     </div>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
