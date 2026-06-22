@@ -3,6 +3,7 @@
 <head>
     <title>Login Cyber AI</title>
 <!-- 1. Firebase App (Bumbu Utama) -->
+     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 
 <!-- 2. Firebase Auth (Untuk Login) -->
@@ -14,15 +15,22 @@
 </head>
 <body>
     <div class="login-container">
-        <h1 class="text1">Selamat Datang di Cyber AI</h1>
+        <h1 class="text1">Selamat Datang di Whale Shark AI</h1>
         <h2 class="text2">Silakan Masuk untuk Melanjutkan</h2>
         
         <button onclick="loginGoogle()" class="login-btn">
-            <div>
-                <img src="https://fonts.gstatic.com/s/i/productlogos/googleg/v6/24px.svg" style="margin-right: 15px; width: 25px;">
-                <span style="color: white;">Masuk dengan Google</span>
-            </div>
+                <img src="https://fonts.gstatic.com/s/i/productlogos/googleg/v6/24px.svg" alt="Google Logo">
+            <span>Masuk dengan Google</span>
         </button>
+        <button onclick="loginGoogle()" class="login-git">
+                <i class="fa-brands fa-github"></i>
+            <span>Masuk dengan GitHub</span>
+        </button>
+        <button onclick="loginGoogle()" class="login-fb">
+                <i class="fa-brands fa-facebook"></i>
+            <span>Masuk dengan Facebook</span>
+        </button>
+        <img src="kimura2-mountain-477832_1920.jpg" alt="gunung" class="iklan">
     </div>
 
     <script src="login.js"></script>
