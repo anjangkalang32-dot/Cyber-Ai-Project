@@ -7,6 +7,7 @@
     { "src": "cyber.js", "use": "@vercel/static" },
     { "src": "Nexus.png", "use": "@vercel/static" },
     { "src": "whale_shark.png", "use": "@vercel/static" },
+    { "src": "kimura2-mountain-477832_1920.jpg", "use": "@vercel/static" },
     { "src": "login.html", "use": "@vercel/static" },
     { "src": "login.css", "use": "@vercel/static" },
     { "src": "login.js", "use": "@vercel/static" }
