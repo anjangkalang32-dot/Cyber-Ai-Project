@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setelan - Nexus AI</title>
+    <meta name="referrer" content="no-referrer">
+    <link rel="icon" type="image/png" href="whale_shark.png">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="setting.css">
+</head>
+<body>
+
+<div class="setting-page">
+
+    <!-- Topbar -->
+    <div class="setting-topbar">
+        <button class="setting-back-btn" onclick="history.back()" title="Kembali">
+            <i class="fas fa-arrow-left"></i>
+        </button>
+        <span class="setting-topbar-title">Setelan</span>
+    </div>
+
+    <div class="setting-body">
+    <div class="setting-content">
+
+        <!-- ===== KARTU PROFIL ===== -->
+        <div class="profile-card">
+            <div class="profile-avatar" id="profileAvatar">
+                <span class="material-symbols-outlined">account_circle</span>
+            </div>
+            <div class="profile-info">
+                <div class="profile-name" id="profileName">Memuat...</div>
+                <div class="profile-email" id="profileEmail">-</div>
+                <div class="profile-badge"><i class="fas fa-circle" style="font-size:6px"></i> Akun Aktif</div>
+            </div>
+            <button class="btn-edit-profile" onclick="bukaModalNama()" title="Edit profil">
+                <i class="fas fa-pen"></i>
+            </button>
+        </div>
+
+        <!-- ===== SECTION: AKUN ===== -->
+        <div class="setting-section">
+            <div class="section-header">Akun</div>
+
+            <div class="setting-item" onclick="bukaModalNama()">
+                <div class="item-icon"><i class="fas fa-user-pen"></i></div>
+                <div class="item-text">
+                    <div class="item-label">Ganti Nama Tampilan</div>
+                    <div class="item-desc">Nama yang muncul di sidebar</div>
+                </div>
+                <span class="item-chevron"><i class="fas fa-chevron-right"></i></span>
+            </div>
+
+            <div class="setting-item" onclick="kirimResetPassword()">
+                <div class="item-icon"><i class="fas fa-lock"></i></div>
+                <div class="item-text">
+                    <div class="item-label">Ganti Password</div>
+                    <div class="item-desc">Kirim email reset ke akun kamu</div>
+                </div>
+                <span class="item-chevron"><i class="fas fa-chevron-right"></i></span>
+            </div>
+
+            <div class="setting-item" onclick="konfirmasiLogout()">
+                <div class="item-icon" style="background:rgba(255,68,68,0.1); color:#ff4444;">
+                    <i class="fas fa-sign-out-alt"></i>
+                </div>
+                <div class="item-text">
+                    <div class="item-label" style="color:#ff4444;">Keluar dari Akun</div>
+                    <div class="item-desc">Logout dari sesi ini</div>
+                </div>
+                <span class="item-chevron" style="color:#ff4444;"><i class="fas fa-chevron-right"></i></span>
+            </div>
+        </div>
+
+        <!-- ===== SECTION: TAMPILAN ===== -->
+        <div class="setting-section">
+            <div class="section-header">Tampilan</div>
+
+            <div class="setting-item">
+                <div class="item-icon"><i class="fas fa-moon"></i></div>
+                <div class="item-text">
+                    <div class="item-label">Mode Gelap</div>
+                    <div class="item-desc">Ganti tema ke dark mode</div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="toggle-darkmode" onchange="toggleDarkMode(this)">
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+
+            <div class="setting-item" onclick="bukaModalWarna()">
+                <div class="item-icon"><i class="fas fa-palette"></i></div>
+                <div class="item-text">
+                    <div class="item-label">Warna Kustom</div>
+                    <div class="item-desc">Atur warna background & teks sendiri</div>
+                </div>
+                <span class="item-chevron"><i class="fas fa-chevron-right"></i></span>
+            </div>
+
+            <div class="setting-item">
+                <div class="item-icon"><i class="fas fa-text-height"></i></div>
+                <div class="item-text">
+                    <div class="item-label">Ukuran Font</div>
+                    <div class="item-desc">Sesuaikan ukuran teks chat</div>
+                </div>
+                <select class="item-select" id="select-fontsize" onchange="gantiFont(this.value)">
+                    <option value="small">Kecil</option>
+                    <option value="normal" selected>Normal</option>
+                    <option value="large">Besar</option>
+                </select>
+            </div>
+
+            <div class="setting-item">
+                <div class="item-icon"><i class="fas fa-language"></i></div>
+                <div class="item-text">
+                    <div class="item-label">Bahasa</div>
+                    <div class="item-desc">Bahasa antarmuka aplikasi</div>
+                </div>
+                <select class="item-select" id="select-lang" onchange="gantiLang(this.value)">
+                    <option value="id" selected>Indonesia</option>
+                    <option value="en">English</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- ===== SECTION: CHAT ===== -->
+        <div class="setting-section">
+            <div class="section-header">Chat</div>
+
+            <div class="setting-item">
+                <div class="item-icon"><i class="fas fa-robot"></i></div>
+                <div class="item-text">
+                    <div class="item-label">Model Default</div>
+                    <div class="item-desc">AI yang langsung aktif saat buka chat</div>
+                </div>
+                <select class="item-select" id="select-model" onchange="gantiModelDefault(this.value)">
+                    <option value="groq">Groq (Llama 4)</option>
+                    <option value="gpt-oss">GPT-OSS 120B</option>
+                    <option value="gemini">Gemini 3.5 Flash</option>
+                </select>
+            </div>
+
+            <div class="setting-item">
+                <div class="item-icon"><i class="fas fa-keyboard"></i></div>
+                <div class="item-text">
+                    <div class="item-label">Enter untuk Kirim</div>
+                    <div class="item-desc">Tekan Enter langsung kirim pesan</div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="toggle-enter" onchange="simpanToggle('enterSend', this.checked)">
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+
+            <div class="setting-item">
+                <div class="item-icon"><i class="fas fa-globe"></i></div>
+                <div class="item-text">
+                    <div class="item-label">Riset Web Otomatis</div>
+                    <div class="item-desc">AI cari info terkini dari internet</div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="toggle-websearch" onchange="simpanToggle('webSearch', this.checked)">
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+
+            <div class="setting-item" onclick="hapusSemuaRiwayat()">
+                <div class="item-icon" style="background:rgba(255,100,0,0.08); color:#ff6400;">
+                    <i class="fas fa-trash-alt"></i>
+                </div>
+                <div class="item-text">
+                    <div class="item-label">Hapus Semua Riwayat Chat</div>
+                    <div class="item-desc">Tidak bisa dibatalkan</div>
+                </div>
+                <span class="item-chevron"><i class="fas fa-chevron-right"></i></span>
+            </div>
+        </div>
+
+        <!-- ===== SECTION: LAINNYA ===== -->
+        <div class="setting-section">
+            <div class="section-header">Lainnya</div>
+
+            <div class="setting-item" onclick="bukaLink('https://nexus-ai.example.com/privacy')">
+                <div class="item-icon"><i class="fas fa-shield-halved"></i></div>
+                <div class="item-text"><div class="item-label">Kebijakan Privasi</div></div>
+                <span class="item-chevron"><i class="fas fa-chevron-right"></i></span>
+            </div>
+
+            <div class="setting-item" onclick="bukaLink('https://nexus-ai.example.com/terms')">
+                <div class="item-icon"><i class="fas fa-file-contract"></i></div>
+                <div class="item-text"><div class="item-label">Syarat & Ketentuan</div></div>
+                <span class="item-chevron"><i class="fas fa-chevron-right"></i></span>
+            </div>
+
+            <div class="setting-item danger" onclick="konfirmasiHapusAkun()">
+                <div class="item-icon"><i class="fas fa-user-xmark"></i></div>
+                <div class="item-text">
+                    <div class="item-label">Hapus Akun</div>
+                    <div class="item-desc">Permanen, tidak bisa dipulihkan</div>
+                </div>
+                <span class="item-chevron" style="color:#ff4444"><i class="fas fa-chevron-right"></i></span>
+            </div>
+        </div>
+
+        <div class="setting-footer">
+            Nexus AI — Beta
+            <span>v1.0.0</span>
+        </div>
+
+    </div><!-- end setting-content -->
+    </div><!-- end setting-body -->
+</div><!-- end setting-page -->
+
+<!-- ===== MODAL: GANTI NAMA ===== -->
+<div class="modal-overlay" id="modal-nama">
+    <div class="modal-box">
+        <div class="modal-title"><i class="fas fa-user-pen" style="color:#002fff; margin-right:8px"></i>Ganti Nama Tampilan</div>
+        <input type="text" class="modal-input" id="input-nama" placeholder="Nama baru kamu...">
+        <div class="modal-actions">
+            <button class="btn-modal-cancel" onclick="tutupModal('modal-nama')">Batal</button>
+            <button class="btn-modal-save" onclick="simpanNama()">Simpan</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== MODAL: LOGOUT ===== -->
+<div class="modal-overlay" id="modal-logout">
+    <div class="modal-box">
+        <div class="modal-title"><i class="fas fa-sign-out-alt" style="color:#ff4444; margin-right:8px"></i>Keluar dari akun?</div>
+        <p style="font-size:0.87rem; color:#555; margin-bottom:20px;">Kamu akan keluar dari Nexus AI. Chat tersimpan tetap aman.</p>
+        <div class="modal-actions">
+            <button class="btn-modal-cancel" onclick="tutupModal('modal-logout')">Batal</button>
+            <button class="btn-modal-save" style="background:#ff4444" onclick="doLogout()">Keluar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== MODAL: HAPUS RIWAYAT ===== -->
+<div class="modal-overlay" id="modal-hapus-riwayat">
+    <div class="modal-box">
+        <div class="modal-title"><i class="fas fa-trash-alt" style="color:#ff6400; margin-right:8px"></i>Hapus semua riwayat chat?</div>
+        <p style="font-size:0.87rem; color:#555; margin-bottom:20px;">Semua percakapan akan dihapus permanen.</p>
+        <div class="modal-actions">
+            <button class="btn-modal-cancel" onclick="tutupModal('modal-hapus-riwayat')">Batal</button>
+            <button class="btn-modal-save" style="background:#ff6400" onclick="doHapusRiwayat()">Hapus Semua</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== MODAL: HAPUS AKUN ===== -->
+<div class="modal-overlay" id="modal-hapus-akun">
+    <div class="modal-box">
+        <div class="modal-title"><i class="fas fa-user-xmark" style="color:#ff4444; margin-right:8px"></i>Hapus akun permanen?</div>
+        <p style="font-size:0.87rem; color:#555; margin-bottom:16px;">Semua data kamu akan hilang. Ketik <strong>HAPUS</strong> untuk konfirmasi.</p>
+        <input type="text" class="modal-input" id="input-konfirmasi-hapus" placeholder="Ketik HAPUS di sini...">
+        <div class="modal-actions">
+            <button class="btn-modal-cancel" onclick="tutupModal('modal-hapus-akun')">Batal</button>
+            <button class="btn-modal-save" style="background:#ff4444" onclick="doHapusAkun()">Hapus Akun</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== MODAL: WARNA KUSTOM ===== -->
+<div class="modal-overlay" id="modal-warna">
+    <div class="modal-box">
+        <div class="modal-title"><i class="fas fa-palette" style="color:#002fff; margin-right:8px"></i>Warna Kustom</div>
+
+        <div class="warna-preview" id="warna-preview">Contoh tampilan teks kamu</div>
+
+        <div class="warna-field">
+            <label for="input-warna-bg">Warna Background</label>
+            <input type="color" id="input-warna-bg" class="color-input" oninput="previewWarna()">
+        </div>
+        <div class="warna-field">
+            <label for="input-warna-text">Warna Teks</label>
+            <input type="color" id="input-warna-text" class="color-input" oninput="previewWarna()">
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn-modal-cancel" onclick="batalWarnaKustom()">Batal</button>
+            <button class="btn-modal-save" onclick="simpanWarnaKustom()">Simpan</button>
+        </div>
+        <button class="btn-reset-warna" onclick="resetWarnaKustom()">Kembalikan ke default</button>
+    </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+<!-- Setting Script -->
+<script src="setting.js"></script>
+
+</body>
+</html>

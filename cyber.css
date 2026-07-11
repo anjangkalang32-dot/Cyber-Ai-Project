@@ -1,3 +1,8 @@
+:root {
+    --user-bg: #d0e3ff;
+    --user-text: #15181c;
+}
+
 * {
     box-sizing: border-box;
     margin: 0;
@@ -6,24 +11,27 @@
 }
 
 body {
-    background-color: #d1deff;
+    background-color: var(--user-bg);
+    color: var(--user-text);
     height: 100vh;
     margin: 0;
     display: flex;
     justify-content: center;
     align-items: center;
+    transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 .main-container {
     width: 100vw; 
     height: 100vh; 
     max-width: none; 
-    background: #d0e3ff;
+    background: var(--user-bg);
     display: flex;
     flex-direction: column;
     border-radius: 0;
     border: none;
     box-shadow: none;
+    transition: background-color 0.25s ease;
 }
 .header h1 {
     color: #00ff00;
@@ -111,7 +119,7 @@ flex: 1;
 .ai-msg {
     align-self: flex-start;
     background: transparent;
-    color: #000000;
+    color: var(--user-text);
     padding: 10px 0;
     max-width: 90%;
     line-height: 1.6;
@@ -690,10 +698,10 @@ flex: 1;
     top: 0;
     width: 260px;
     height: 100%;
-    background: #b1d0ff;
+    background: var(--user-bg);
     border-right: 1px solid #00ff00;
     z-index: 1000;
-    transition: transform 0.3s ease;
+    transition: transform 0.3s ease, background-color 0.25s ease;
     padding: 15px;
     display: flex;
     flex-direction: column;
@@ -738,7 +746,7 @@ flex: 1;
     top: 15px;
     left: 15px;
     font-size: 24px;
-    color: #000000;
+    color: var(--user-text);
     cursor: pointer;
     z-index: 1100;
     transition: 0.3s;
@@ -906,7 +914,7 @@ flex: 1;
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    background: #000000;
+    background: var(--user-text);
     opacity: 0.45;
     transform: translateY(0);
     animation: bounceDots 1s infinite ease-in-out;
@@ -927,6 +935,19 @@ flex: 1;
     font-size: 0.8rem;
     color: #555;
     font-style: italic;
+}
+
+/* Kursor berkedip di akhir teks AI selama jawaban masih streaming (efek ngetik live) */
+.streaming-cursor::after {
+    content: '▍';
+    display: inline-block;
+    margin-left: 2px;
+    animation: blinkCursor 0.9s steps(1) infinite;
+    color: #00ff00;
+}
+@keyframes blinkCursor {
+    0%, 50% { opacity: 1; }
+    50.01%, 100% { opacity: 0; }
 }
 
 /* Daftar sumber hasil riset web (Tavily), ditaruh di bawah jawaban AI */

@@ -39,7 +39,7 @@ const TAVILY_API_KEY = process.env.TAVILY_API_KEY;
 const ENABLE_WEB_SEARCH = process.env.ENABLE_WEB_SEARCH !== 'false';
 
 // System prompt yang sama untuk kedua model
-const systemPrompt = `Kamu adalah Nexus AI Beta Edition, asisten cerdas buatan Anjang Kalang.
+const systemPrompt = `Kamu adalah Whale Shark, asisten cerdas buatan Anjang Kalang Kusuma.
 
 ATURAN FORMAT WAJIB (DITURUTI ATAU ERROR):
 1. HARAM/DILARANG KERAS menggunakan simbol LaTeX seperti $...$ atau $$...$$. 
@@ -84,25 +84,47 @@ async function callGroq(message, context, image, modelName = "meta-llama/llama-4
         messagesForAI.push({ role: "user", content: extraContext });
     }
 
+    const isReasoningModel = modelName.includes('gpt-oss');
+
+    // Reasoning model (gpt-oss) HANYA terima content berupa string.
+    // Kalau dikasih array [{ type: 'text', ... }], Groq return content=null diam-diam.
+    // Model biasa (llama, dll) bisa array (butuh untuk image).
     let userContent;
-    if (image) {
+    if (image && !isReasoningModel) {
         userContent = [
             { type: "text", text: message || "Jelaskan gambar ini" },
             { type: "image_url", image_url: { url: image } }
         ];
     } else {
-        userContent = [{ type: "text", text: message || "Halo" }];
+        // String biasa -- wajib untuk reasoning model, aman untuk semua model lain
+        userContent = message || "Halo";
     }
     
     messagesForAI.push({ role: "user", content: userContent });
-
-    const chatCompletion = await groq.chat.completions.create({
+    const completionParams = {
         messages: messagesForAI,
         model: modelName,
-        temperature: 0.8,
-    });
+    };
+    if (isReasoningModel) {
+        // PENTING: reasoning model Groq TIDAK boleh pakai temperature selain 1 (atau tidak diset).
+        // Kalau temperature != 1 dikirim, API Groq mengembalikan content=null/kosong tanpa error.
+        // Juga butuh max_completion_tokens yang cukup buat fase "berpikir" + jawaban final.
+        completionParams.max_completion_tokens = 4096;
+        completionParams.reasoning_effort = 'low';
+        // temperature sengaja tidak diset (default 1) untuk reasoning model
+    } else {
+        completionParams.temperature = 0.8;
+    }
 
-    return chatCompletion.choices[0]?.message?.content || "Duh Bosku, aku lagi ngelamun. Tanya lagi yuk!";
+    const chatCompletion = await groq.chat.completions.create(completionParams);
+
+    const msg = chatCompletion.choices[0]?.message;
+    // Reasoning model kadang taruh jawaban di content, kadang di reasoning_content kalau content kosong.
+    const content = msg?.content || msg?.reasoning_content || "";
+    if (!content) {
+        console.warn('\u26a0\ufe0f [callGroq] Jawaban kosong dari model, full message:', JSON.stringify(msg));
+    }
+    return content || "Duh Bosku, aku lagi ngelamun. Tanya lagi yuk!";
 }
 
 // Fungsi untuk memanggil Gemini
@@ -146,6 +168,137 @@ async function callGemini(message, context, image, extraContext = "") {
     }
 
     return result.response.text();
+}
+
+// ===== VERSI STREAMING (buat efek ngetik real-time kayak Gemini/ChatGPT) =====
+// Bedanya sama callGroq/callGemini biasa: di sini kita gak nunggu jawaban full kelar,
+// tapi manggil onChunk(potongan_teks) tiap ada potongan baru yang nyampe dari API.
+// Tetep return teks lengkapnya juga di akhir, buat disimpen ke memori/riwayat.
+
+async function callGroqStream(message, context, image, modelName = "meta-llama/llama-4-scout-17b-16e-instruct", extraContext = "", onChunk = () => {}) {
+    const messagesForAI = [
+        { role: "system", content: systemPrompt }
+    ];
+
+    if (context) {
+        messagesForAI.push({ role: "user", content: `Memori Chat: ${context}` });
+    }
+
+    if (extraContext) {
+        messagesForAI.push({ role: "user", content: extraContext });
+    }
+
+    const isReasoningModel = modelName.includes('gpt-oss');
+
+    // Reasoning model tidak support content array -- kasih string biasa
+    let userContent;
+    if (image && !isReasoningModel) {
+        userContent = [
+            { type: "text", text: message || "Jelaskan gambar ini" },
+            { type: "image_url", image_url: { url: image } }
+        ];
+    } else {
+        userContent = message || "Halo";
+    }
+
+    messagesForAI.push({ role: "user", content: userContent });
+
+    // Model GPT-OSS (openai/gpt-oss-*) adalah "reasoning model": dia mikir (chain-of-thought)
+    // dulu sebelum nulis jawaban final, dan proses mikir itu makan token sendiri.
+    // Kalau nggak dikasih jatah token yang cukup, bisa kejadian token habis pas masih
+    // di fase "mikir" -> delta.content kosong dari awal sampai akhir walau stream-nya sukses
+    // (nggak ada error sama sekali, cuma jawabannya nggak pernah sempet ditulis).
+    const streamParams = {
+        messages: messagesForAI,
+        model: modelName,
+        stream: true,
+    };
+    if (isReasoningModel) {
+        // PENTING: reasoning model Groq tidak boleh pakai temperature != 1
+        streamParams.max_completion_tokens = 4096;
+        streamParams.reasoning_effort = 'low';
+        // temperature tidak diset (default 1)
+    } else {
+        streamParams.temperature = 0.8;
+    }
+
+    const stream = await groq.chat.completions.create(streamParams);
+
+    let fullText = "";
+    let chunkIndex = 0;
+    for await (const chunk of stream) {
+        // Log struktur chunk PERTAMA aja (biar nggak spam console) -- kalau suatu saat
+        // delta.content ternyata selalu kosong, log ini bakal nunjukin field mana yang
+        // sebenarnya dipakai sama provider/model ini buat nyimpen teksnya.
+        if (chunkIndex === 0) {
+            console.log('🔍 [Groq stream] contoh chunk pertama:', JSON.stringify(chunk));
+        }
+        chunkIndex++;
+
+        const delta = chunk.choices?.[0]?.delta?.content || "";
+        if (delta) {
+            fullText += delta;
+            onChunk(delta);
+        }
+    }
+
+    console.log(`✅ [Groq stream] loop selesai. Total chunk: ${chunkIndex}, panjang jawaban: ${fullText.length} karakter`);
+
+    if (!fullText) {
+        console.log(`⚠️ [Groq stream] ${chunkIndex} chunk diterima tapi semua delta.content kosong (model=${modelName})`);
+    }
+
+    return fullText || "Duh Bosku, aku lagi ngelamun. Tanya lagi yuk!";
+}
+
+async function callGeminiStream(message, context, image, extraContext = "", onChunk = () => {}) {
+    const geminiModelName = "gemini-3.5-flash";
+    const model = genAI.getGenerativeModel({ model: geminiModelName });
+
+    let streamResult;
+    if (image) {
+        const base64Image = image.split(',')[1] || image;
+        const mimeType = image.match(/data:(image\/\w+);base64,/)?.[1] || 'image/jpeg';
+
+        streamResult = await model.generateContentStream([
+            { text: systemPrompt + "\n\n" + (message || "Jelaskan gambar ini") },
+            { inlineData: { data: base64Image, mimeType: mimeType } }
+        ]);
+    } else {
+        let fullPrompt = systemPrompt + "\n\n";
+        if (context) {
+            fullPrompt += `[MEMORI SEBELUMNYA: ${context}]\n\n`;
+        }
+        if (extraContext) {
+            fullPrompt += extraContext + "\n\n";
+        }
+        fullPrompt += message || "Halo";
+
+        streamResult = await model.generateContentStream(fullPrompt);
+    }
+
+    let fullText = "";
+    let chunkIndex = 0;
+    for await (const chunk of streamResult.stream) {
+        if (chunkIndex === 0) {
+            try { console.log('🔍 [Gemini stream] contoh chunk pertama:', JSON.stringify(chunk)); } catch (e) { /* ignore */ }
+        }
+        chunkIndex++;
+
+        const chunkText = typeof chunk.text === "function" ? chunk.text() : "";
+        if (chunkText) {
+            fullText += chunkText;
+            onChunk(chunkText);
+        }
+    }
+
+    console.log(`✅ [Gemini stream] loop selesai. Total chunk: ${chunkIndex}, panjang jawaban: ${fullText.length} karakter`);
+
+    if (!fullText) {
+        console.log(`⚠️ [Gemini stream] ${chunkIndex} chunk diterima tapi semua chunk.text() kosong`);
+    }
+
+    return fullText || "Duh Bosku, aku lagi ngelamun. Tanya lagi yuk!";
 }
 
 async function callGeminiImageFromText(prompt, context) {
@@ -916,6 +1069,201 @@ app.post('/chat', async (req, res) => {
                 reply: `Server lagi sibuk, Bosku! Coba lagi ya. (Error: ${error.message})` 
             });
         }
+    }
+});
+
+// ===== ENDPOINT STREAMING (Server-Sent Events) =====
+// Tujuannya sama kayak /chat, tapi balasan AI dikirim sepotong-sepotong begitu kelar
+// digenerate (token-by-token), bukan nunggu jawaban full kelar dulu kayak /chat biasa.
+// Efeknya di frontend: teks "ngetik" sendiri secara live, sama seperti Gemini/ChatGPT.
+//
+// Format tiap event: "data: {...json...}\n\n"
+//   - { delta: "..." }              -> potongan teks baru, ditambahin ke teks yang udah ada
+//   - { done: true, modelUsed, sources, image, video } -> tanda selesai + metadata tambahan
+app.post('/chat/stream', async (req, res) => {
+    const { message, context, image, model, file } = req.body;
+    let selectedModel = model || 'groq';
+    console.log(`\n=== /chat/stream MULAI === model=${selectedModel}, message="${String(message).slice(0, 60)}"`);
+
+    res.writeHead(200, {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no' // biar nggak dibuffer proxy/nginx, chunk langsung diteruskan
+    });
+
+    const send = (payload) => {
+        try { res.write(`data: ${JSON.stringify(payload)}\n\n`); } catch (e) { /* koneksi mungkin udah putus */ }
+    };
+
+    let clientClosed = false;
+    req.on('close', () => { clientClosed = true; });
+
+    try {
+        // ===== VIDEO: belum ada streaming token, jadi dikirim sebagai satu "delta" utuh =====
+        const wantsVideo = !image && isVideoIntent(message);
+        if (wantsVideo) {
+            if (!process.env.HUGGINGFACE_API_KEY) {
+                send({ delta: 'Maaf, pembuatan video hanya didukung lewat Hugging Face. Silakan atur HUGGINGFACE_API_KEY di .env.' });
+                send({ done: true, modelUsed: 'huggingface-video-unavailable' });
+                return res.end();
+            }
+            const hfVideoResult = await callHuggingFaceVideo(message || '');
+            if (hfVideoResult && hfVideoResult.video) {
+                send({ delta: 'Video selesai dibuat.' });
+                send({ done: true, modelUsed: 'huggingface-video', video: hfVideoResult.video });
+                return res.end();
+            }
+            send({ delta: 'Maaf, pembuatan video gagal. Bisa jadi prosesnya kelamaan (timeout), kuota/saldo provider habis, atau konfigurasi HF_VIDEO_MODEL/HF_VIDEO_PROVIDER salah.' });
+            send({ done: true, modelUsed: 'huggingface-video-error' });
+            return res.end();
+        }
+
+        // ===== VISION / IMAGE GENERATION: sama, satu "delta" utuh (bukan streaming token) =====
+        const wantsImageAnalysis = Boolean(image);
+        const wantsImageGeneration = !image && isImageIntent(message);
+
+        if (wantsImageAnalysis) {
+            try {
+                let visionReply;
+                if (selectedModel === 'gemini') {
+                    visionReply = await callGemini(message, context, image);
+                    send({ delta: visionReply });
+                    send({ done: true, modelUsed: 'gemini-vision' });
+                } else {
+                    visionReply = await callGroq(message, context, image, 'meta-llama/llama-4-scout-17b-16e-instruct');
+                    send({ delta: visionReply });
+                    send({ done: true, modelUsed: 'groq-vision' });
+                }
+            } catch (visionError) {
+                send({ delta: `Maaf Bosku, gagal menganalisa gambarnya. (Error: ${visionError.message})` });
+                send({ done: true, modelUsed: 'vision-error' });
+            }
+            return res.end();
+        }
+
+        if (wantsImageGeneration) {
+            if (!process.env.HUGGINGFACE_API_KEY) {
+                send({ delta: 'Maaf, pembuatan gambar hanya didukung lewat Hugging Face. Silakan atur HUGGINGFACE_API_KEY di .env.' });
+                send({ done: true, modelUsed: 'huggingface-image-unavailable' });
+                return res.end();
+            }
+            const hfResult = await callHuggingFaceImage(message || '');
+            if (hfResult && hfResult.image) {
+                send({ delta: 'Gambar selesai dibuat.' });
+                send({ done: true, modelUsed: 'huggingface', image: hfResult.image });
+                return res.end();
+            }
+            send({ delta: 'Maaf, pembuatan gambar gagal. Hugging Face tidak mengembalikan gambar atau konfigurasi tidak benar. Periksa HUGGINGFACE_API_KEY dan HF_IMAGE_MODEL di .env.' });
+            send({ done: true, modelUsed: 'huggingface-image-error' });
+            return res.end();
+        }
+
+        // ===== BACA FILE + RISET WEB (logikanya sama persis dengan /chat biasa) =====
+        let documentContext = "";
+        if (file && file.data) {
+            const extracted = await extractTextFromDocument(file);
+            if (extracted && extracted.trim()) {
+                documentContext = formatDocumentForPrompt(file.filename, truncateText(extracted));
+            } else {
+                documentContext = `\n\n[Catatan untuk AI: user upload file "${file.filename}" tapi server gagal membaca isinya (format belum didukung, library belum di-install, atau filenya kosong). Bilang terus terang ke user soal ini, jangan mengarang isinya.]`;
+            }
+        }
+
+        let searchContext = "";
+        let searchSources = [];
+        if (ENABLE_WEB_SEARCH && needsResearch(message)) {
+            const tavilyData = await tavilySearch(message);
+            if (tavilyData && (tavilyData.answer || (tavilyData.results && tavilyData.results.length > 0))) {
+                searchContext = formatTavilyForPrompt(message, tavilyData);
+                searchSources = (tavilyData.results || []).map(r => ({ title: r.title, link: r.url }));
+            }
+        }
+
+        const extraContext = [documentContext, searchContext].filter(Boolean).join('\n');
+
+        let chunkCount = 0;
+        const onChunk = (delta) => {
+            chunkCount++;
+            if (!clientClosed) send({ delta });
+        };
+
+        // ===== STREAMING BENERAN: token demi token dari Groq/Gemini =====
+        // Catatan: gpt-oss adalah reasoning model. Temperature harus 1 (default) dan
+        // jawaban finalnya lebih andal lewat non-streaming (content tidak terpotong).
+        if (selectedModel === 'gpt-oss') {
+            // gpt-oss butuh waktu lama untuk reasoning sebelum menghasilkan jawaban.
+            // Masalah: browser menutup koneksi SSE kalau terlalu lama tidak ada data.
+            // Solusi dua lapis:
+            // 1. Kirim send({ thinking:true }) dulu -- ini bukan delta, jadi frontend
+            //    mengabaikannya, tapi cukup untuk membuat koneksi 'aktif' di mata browser.
+            // 2. Kirim komentar SSE ': ping' setiap 5 detik sebagai keepalive tambahan.
+            console.log('INFO gpt-oss: memanggil callGroq non-streaming...');
+            send({ thinking: true });
+            const heartbeat = setInterval(() => {
+                if (!clientClosed) {
+                    try { res.write(': ping\n\n'); } catch(e) {}
+                }
+            }, 5000);
+            let gptOssText;
+            try {
+                gptOssText = await callGroq(message, context, image, 'openai/gpt-oss-120b', extraContext);
+            } finally {
+                clearInterval(heartbeat);
+            }
+            console.log('INFO gpt-oss: selesai, panjang:', gptOssText?.length, '| clientClosed:', clientClosed);
+            if (!clientClosed) send({ delta: gptOssText });
+            chunkCount++;
+        } else if (selectedModel === 'gemini') {
+            try {
+                await callGeminiStream(message, context, image, extraContext, onChunk);
+            } catch (geminiError) {
+                if (isGeminiQuotaError(geminiError)) {
+                    console.warn('Gemini quota exceeded (stream), fallback ke Groq:', geminiError.message);
+                    selectedModel = 'groq';
+                    await callGroqStream(message, context, image, undefined, extraContext, onChunk);
+                } else {
+                    throw geminiError;
+                }
+            }
+        } else {
+            await callGroqStream(message, context, image, undefined, extraContext, onChunk);
+        }
+
+        // ===== SAFETY NET =====
+        // Kadang format chunk streaming dari provider/model tertentu beda dari yang diharapkan,
+        // jadi loop di atas kelar tanpa error TAPI nggak ada satupun delta yang berhasil diekstrak
+        // (chunkCount tetap 0). Daripada user cuma dikasih kalimat "ngelamun" yang nggak ada
+        // jawaban beneran, di sini kita fallback diam-diam ke pemanggilan non-streaming biasa
+        // (yang sudah teruji jalan), terus hasilnya dikirim sebagai satu delta utuh.
+        if (chunkCount === 0 && !clientClosed) {
+            console.log(`⚠️ Streaming 0 chunk untuk model=${selectedModel}, fallback ke pemanggilan non-streaming...`);
+            try {
+                let fallbackText;
+                if (selectedModel === 'gemini') {
+                    fallbackText = await callGemini(message, context, image, extraContext);
+                } else if (selectedModel === 'gpt-oss') {
+                    fallbackText = await callGroq(message, context, image, 'openai/gpt-oss-120b', extraContext);
+                } else {
+                    fallbackText = await callGroq(message, context, image, undefined, extraContext);
+                }
+                send({ delta: fallbackText });
+            } catch (fallbackErr) {
+                console.log('❌ Fallback non-streaming juga gagal:', fallbackErr.message);
+                send({ delta: `Maaf Bosku, server lagi bermasalah. (Error: ${fallbackErr.message})` });
+            }
+        }
+
+        send({ done: true, modelUsed: selectedModel, sources: searchSources.length > 0 ? searchSources : undefined });
+        console.log(`=== /chat/stream SELESAI (sukses) === modelUsed=${selectedModel}\n`);
+        res.end();
+
+    } catch (error) {
+        console.log('Error di /chat/stream:', error.message, error.stack);
+        send({ delta: `\n\n(Server lagi sibuk, Bosku! Coba lagi ya. Error: ${error.message})` });
+        send({ done: true, modelUsed: selectedModel, error: true });
+        console.log(`=== /chat/stream SELESAI (error) ===\n`);
+        try { res.end(); } catch (e) { /* ignore */ }
     }
 });
 

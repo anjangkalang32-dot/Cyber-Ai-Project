@@ -3,6 +3,22 @@ let isLoaded = false;
 let pendingImage = null;
 let pendingDocument = null; // { data: dataURL, filename, mimeType } -- buat PDF/Word/Excel/CSV/TXT/JSON
 
+// ===== WARNA KUSTOM (disambungkan dari halaman Setelan) =====
+// Terapkan warna background & teks yang sudah disimpan user di halaman Setelan.
+function terapkanWarnaKustom() {
+    const bg = localStorage.getItem('customBgColor');
+    const text = localStorage.getItem('customTextColor');
+    if (bg) document.documentElement.style.setProperty('--user-bg', bg);
+    if (text) document.documentElement.style.setProperty('--user-text', text);
+}
+terapkanWarnaKustom();
+
+// Kalau user ganti warna di tab/halaman Setelan saat halaman chat ini juga terbuka,
+// langsung ikut berubah tanpa perlu refresh manual.
+window.addEventListener('storage', (e) => {
+    if (e.key === 'customBgColor' || e.key === 'customTextColor') terapkanWarnaKustom();
+});
+
 const chatBox = document.getElementById('chat-box');
 const userInput = document.getElementById('user-input');
 const sendBtn = document.getElementById('send-button');
@@ -41,7 +57,7 @@ const supabaseClient = supabase.createClient(SB_URL, SB_KEY);
 
 // Nama bucket Supabase Storage tempat gambar (hasil AI maupun upload user) disimpan.
 // GANTI string ini kalau nama bucket kamu beda (cek di Supabase Dashboard > Storage).
-const IMAGE_BUCKET = 'ai-galeri';
+const IMAGE_BUCKET = 'ai-galery';
 
 // Ubah data URL (base64) jadi Blob, perlu buat di-upload ke Supabase Storage.
 async function dataUrlToBlob(dataUrl) {
@@ -165,10 +181,56 @@ window.cancelDocument = () => {
     }
 };
 
+// ===== HELPER UNTUK STREAMING (efek ngetik live, kayak Gemini) =====
+
+// Bikin bubble AI kosong begitu chunk pertama nyampe. contentDiv ini yang
+// terus-terusan di-update isinya selama teks masih ngalir.
+function createStreamingAiMessage() {
+    const chatBox = document.getElementById('chat-box');
+    const msgDiv = document.createElement('div');
+    msgDiv.className = 'message ai-msg';
+
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'msg-content streaming-cursor';
+    msgDiv.appendChild(contentDiv);
+
+    chatBox.appendChild(msgDiv);
+    scrollToBottom();
+
+    return { msgDiv, contentDiv };
+}
+
+// Selama masih streaming, render versi sederhana dulu (belum parse blok kode ```),
+// biar ringan & gak flicker tiap chunk masuk.
+function updateStreamingContent(contentDiv, fullText) {
+    contentDiv.innerHTML = formatPlainAiText(fullText);
+    scrollToBottom();
+}
+
+// Begitu stream selesai ({done:true}), render ulang versi final: blok kode beneran
+// (dengan syntax highlight + tombol copy/download), sumber riset, gambar/video (kalau ada).
+function finalizeStreamingMessage(msgDiv, contentDiv, fullText, sources, imageSrc, videoSrc) {
+    if (contentDiv && contentDiv.parentNode === msgDiv) contentDiv.remove();
+    msgDiv.appendChild(renderAiTextContent(fullText));
+
+    if (sources && sources.length > 0) {
+        msgDiv.appendChild(buildSourcesElement(sources));
+    }
+    if (videoSrc) {
+        msgDiv.classList.add('has-media');
+        msgDiv.prepend(buildChatVideoElement(videoSrc));
+    }
+    if (imageSrc) {
+        msgDiv.classList.add('has-media');
+        msgDiv.prepend(buildChatImageElement(imageSrc));
+    }
+    scrollToBottom();
+}
+
 async function sendMessage() {
     const text = userInput.value.trim();
     const user = firebase.auth().currentUser;
-    const currentImage = pendingImage; 
+    const currentImage = pendingImage;
     const currentDocument = pendingDocument;
 
     if (text === "" && !currentImage && !currentDocument) return;
@@ -188,7 +250,6 @@ async function sendMessage() {
                 .eq('user_email', user.email)
                 .order('created_at', { ascending: false })
                 .limit(3);
-
             if (memories && memories.length > 0) {
                 contextData = memories.map(m => m.chat_context).reverse().join("\n");
             }
@@ -199,60 +260,51 @@ async function sendMessage() {
     cancelImage();
     cancelDocument();
     userInput.value = "";
-
     showTypingIndicator();
 
     try {
-        const response = await fetch('/chat', {
+        const res = await fetch('/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                message: text, 
-                context: contextData, 
+            body: JSON.stringify({
+                message: text,
+                context: contextData,
                 image: currentImage,
                 file: currentDocument,
                 model: selectedModel
-            }),
+            })
         });
-        
-        const data = await response.json();
+
+        const data = await res.json();
         hideTypingIndicator();
-        appendMessage('ai', data.reply, data.image, data.video, null, data.sources);
+
+        const replyText = data.reply || 'Duh Bosku, aku lagi ngelamun. Tanya lagi yuk!';
+        const msgEl = createStreamingAiMessage();
+        updateStreamingContent(msgEl.contentDiv, replyText);
+        finalizeStreamingMessage(msgEl.msgDiv, msgEl.contentDiv, replyText, data.sources || null, null, null);
 
         if (user) {
-            supabaseClient.from('ai_memories').insert([{ 
-                user_email: user.email, 
-                user_name: user.displayName, 
-                chat_context: `User: ${text} | AI: ${data.reply}` 
-            }]).then(() => console.log("Memori aman di Supabase, Bosku!"));
-        }
+            supabaseClient.from('ai_memories').insert([{
+                user_email: user.email,
+                user_name: user.displayName,
+                chat_context: `User: ${text} | AI: ${replyText}`
+            }]).then(() => console.log("Memori aman di Supabase"));
 
-        if (user) {
-            // Upload gambar/video (kalau ada) ke Supabase Storage dulu, paralel biar cepat.
-            // Base64-nya sendiri TIDAK disimpan ke Firestore -- cuma URL publiknya,
-            // soalnya Firestore punya batas ukuran dokumen 1MB dan base64 (apalagi video)
-            // gampang banget mepet/lewat batas itu.
             const folderPath = `${user.uid}/${currentChatId}`;
-            const [gambarUserUrl, gambarAiUrl, videoAiUrl] = await Promise.all([
-                uploadImageToSupabase(currentImage, folderPath),
-                uploadImageToSupabase(data.image, folderPath),
-                uploadImageToSupabase(data.video, folderPath)
-            ]);
+            const gambarUserUrl = await uploadImageToSupabase(currentImage, folderPath);
 
             await db.collection("riwayat_chat").add({
                 uid: user.uid,
                 chat_id: currentChatId,
                 judul_chat: localStorage.getItem('currentChatTitle') || "Chat Baru",
-                pesan: text, 
-                gambarUrl: gambarUserUrl, 
-                jawaban: data.reply,
-                gambarAiUrl: gambarAiUrl,
-                videoAiUrl: videoAiUrl,
+                pesan: text,
+                gambarUrl: gambarUserUrl,
+                jawaban: replyText,
+                gambarAiUrl: null,
+                videoAiUrl: null,
                 waktu: firebase.firestore.FieldValue.serverTimestamp()
             });
-if (typeof window.tampilkanDaftarSidebar === "function") {
-    window.tampilkanDaftarSidebar();
-}
+            if (typeof window.tampilkanDaftarSidebar === "function") window.tampilkanDaftarSidebar();
         }
     } catch (err) {
         console.error("Error chat:", err);
@@ -666,12 +718,12 @@ function hideTypingIndicator() {
     if (el) el.remove();
 }
 
-firebase.auth().onAuthStateChanged((user) => {
-    if (user) {
-        document.getElementById('login-btn').innerHTML = `<img src="${user.photoURL}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
-        if (!isLoaded) { isLoaded = true; muatRiwayatChat(); tampilkanDaftarSidebar(); }
-    } else { window.location.href = "login.html"; }
-});
+// firebase.auth().onAuthStateChanged((user) => {
+//     if (user) {
+//         document.getElementById('login-btn').innerHTML = `<img src="${user.photoURL}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+//         if (!isLoaded) { isLoaded = true; muatRiwayatChat(); tampilkanDaftarSidebar(); }
+//     } else { window.location.href = "login.html"; }
+// });
 
 window.muatRiwayatChat = function() {
     const user = firebase.auth().currentUser;
@@ -758,6 +810,10 @@ window.toggleSidebar = () => {
     document.getElementById('sidebar').classList.toggle('sidebar-hidden');
 };
 
+window.bukaSetting = function() {
+    window.location.href = 'setting.html';
+};
+
 window.mulaiChatBaru = function() {
     currentChatId = Date.now().toString(); 
     localStorage.setItem('activeChatId', currentChatId);
@@ -765,8 +821,7 @@ window.mulaiChatBaru = function() {
     
     chatBox.innerHTML = `
         <div id="welcome-screen" class="welcome-container">
-            <img src="" alt="Logo" class="welcome-logo">
-            <p>Selamat datang di Cyber AI!</p>
+            <img src="whale_shark.png" alt="Logo" class="welcome-logo">
         </div>`;
     
     if (window.innerWidth < 768) {

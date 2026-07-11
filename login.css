@@ -37,16 +37,13 @@ body {
     margin-bottom: 40px;
 }
 .login-btn {
-    margin-top: 20px;
-    background-color: #ffffff;
-    color: #000000;
-    border: 1px solid #000000;
     width: 300px;
+    margin-top: -9cm;
     height: 50px;
-    font-size: 1rem;
     border-radius: 100px;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
+    background-color: #ffffff;
+    font-family: 'Poppins', sans-serif;
+    border: 1px solid #000000;
 }
 .login-btn img {
     display: flex;
@@ -63,16 +60,12 @@ body {
     margin-top: -22px;
 }
 .login-git {
-    margin-top: 20px;
-    background-color: #ffffff;
-    color: #000000;
-    border: 1px solid #000000;
     width: 300px;
     height: 50px;
-    font-size: 1rem;
     border-radius: 100px;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
+    background-color: #ffffff;
+    margin-top: 20px;
+    padding-bottom: 10px;
 }
 .login-fb {
     margin-top: 20px;
@@ -88,15 +81,13 @@ body {
 }
 .login-git i {
     display: flex;
+    margin-top: 7px;
+    margin-left: 10px;
     font-size: 30px;
-    padding-left: 10px;
 }
 .login-git span {
-    display:flex;
-    color: #000000;
-    font-weight: 600;
-    padding-left: 70px;
-    margin-top: -22px;
+    margin-top: -45px;
+    margin-left: 70px;
 }
 .login-fb i {
     display: flex;
@@ -111,13 +102,21 @@ body {
     padding-left: 70px;
     margin-top: -22px;
 }
+.login-container strong {
+    display: flex;
+    padding-top: 20px;
+    padding-right: 70px;
+    color: #000000;
+    font-size: 1rem;
+}
 .iklan {
     background-color: #ffffff;
     border: 1px solid #000000;
     width: 350px;
-    height: 520px;
+    height: 470px;
     margin-left: 10cm;
-    margin-top: -8cm;
+    margin-top: -3.3cm;
     object-fit: cover;
     border-radius: 20px;
+    display: flex;
 }
