@@ -19,27 +19,40 @@
     <i class="fas fa-bars"></i>
 </div>
 <div id="sidebar" class="sidebar-hidden">
-    <div class="sidebar-header">
-        <button onclick="mulaiChatBaru()" class="btn-new-chat">
-            <i class="fas fa-plus"></i> Chat Baru
+    <div class="sidebar-top">
+        <button id="sidebar-toggle-btn" onclick="toggleSidebar()" class="icon-btn" title="Tutup/buka sidebar" aria-label="Tutup/buka sidebar">
+            <i class="fa-solid fa-bars"></i>
         </button>
-<button onclick="ubahNamaChat()" class="btn-rename" style="margin-top: 10px; width: 100%; padding: 8px; border-radius: 10px; border: 1px solid #00ff00; background: transparent; color: #00ff00; cursor: pointer;">
-    <i class="fas fa-edit"></i> Ganti Nama Chat
-</button>
+        <span class="sidebar-logo">Nexus AI</span>
     </div>
-    
-    <div id="riwayat-list" class="sidebar-content">
-        <p class="section-title">Terbaru</p>
-        <div class="history-section">
+
+    <div class="sidebar-search">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" id="sidebar-search-input" placeholder="Cari chat..." oninput="filterRiwayat(this.value)">
+    </div>
+
+    <nav class="sidebar-nav">
+        <button onclick="mulaiChatBaru()" class="nav-item" title="Chat Baru">
+            <i class="fa-solid fa-plus"></i><span>Chat Baru</span>
+        </button>
+        <button onclick="ubahNamaChat()" class="nav-item" title="Ganti Nama Chat">
+            <i class="fa-solid fa-pen"></i><span>Ganti Nama Chat</span>
+        </button>
+    </nav>
+
+    <div class="sidebar-content">
         <p class="history-label">Terbaru</p>
-        <div id="riwayat-list">
-        </div>
-    </div>
+        <div id="riwayat-list"></div>
     </div>
 
     <div class="sidebar-footer">
-        <button onclick="bukaSetting()" class="btn-setting">
-            <i class="fas fa-cog"></i> Setelan
+        <button onclick="bukaSetting()" class="user-pill" title="Setelan">
+            <span class="user-avatar"><i class="fa-solid fa-user"></i></span>
+            <span class="user-info">
+                <span class="user-name">Akun Saya</span>
+                <span class="user-plan">Setelan</span>
+            </span>
+            <i class="fa-solid fa-gear user-pill-icon"></i>
         </button>
     </div>
 </div>

@@ -3,6 +3,16 @@ let isLoaded = false;
 let pendingImage = null;
 let pendingDocument = null; // { data: dataURL, filename, mimeType } -- buat PDF/Word/Excel/CSV/TXT/JSON
 
+// ===== MODE GELAP (disambungkan dari toggle di halaman Setelan) =====
+function terapkanModeGelap() {
+    const isDark = localStorage.getItem('darkMode') === 'true';
+    document.body.classList.toggle('dark-mode', isDark);
+}
+terapkanModeGelap();
+window.addEventListener('storage', (e) => {
+    if (e.key === 'darkMode') terapkanModeGelap();
+});
+
 // ===== WARNA KUSTOM (disambungkan dari halaman Setelan) =====
 // Terapkan warna background & teks yang sudah disimpan user di halaman Setelan.
 function terapkanWarnaKustom() {
@@ -50,6 +60,23 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+
+// ===== Isi user-pill di sidebar kalau lagi login (gak ganggu flow login/redirect yang ada) =====
+firebase.auth().onAuthStateChanged((user) => {
+    const nameEl = document.querySelector('.user-pill .user-name');
+    const avatarEl = document.querySelector('.user-pill .user-avatar');
+    if (!nameEl || !avatarEl) return;
+    if (user) {
+        nameEl.textContent = user.displayName || user.email || 'Akun Saya';
+        avatarEl.innerHTML = user.photoURL
+            ? `<img src="${user.photoURL}" alt="avatar">`
+            : `<i class="fa-solid fa-user"></i>`;
+        if (typeof window.tampilkanDaftarSidebar === 'function') window.tampilkanDaftarSidebar();
+    } else {
+        nameEl.textContent = 'Akun Saya';
+        avatarEl.innerHTML = `<i class="fa-solid fa-user"></i>`;
+    }
+});
 
 const SB_URL = 'https://oatgbiamflsvppykohvo.supabase.co'; 
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hdGdiaWFtZmxzdnBweWtvaHZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNTk5NjMsImV4cCI6MjA5MjkzNTk2M30.Nb8dPo6P_GOW6qfLn2PMC1YBJ7hevseGvGW2aGBNgGI'; 
@@ -281,7 +308,7 @@ async function sendMessage() {
         const replyText = data.reply || 'Duh Bosku, aku lagi ngelamun. Tanya lagi yuk!';
         const msgEl = createStreamingAiMessage();
         updateStreamingContent(msgEl.contentDiv, replyText);
-        finalizeStreamingMessage(msgEl.msgDiv, msgEl.contentDiv, replyText, data.sources || null, null, null);
+        finalizeStreamingMessage(msgEl.msgDiv, msgEl.contentDiv, replyText, data.sources || null, data.image || null, data.video || null);
 
         if (user) {
             supabaseClient.from('ai_memories').insert([{
@@ -300,8 +327,8 @@ async function sendMessage() {
                 pesan: text,
                 gambarUrl: gambarUserUrl,
                 jawaban: replyText,
-                gambarAiUrl: null,
-                videoAiUrl: null,
+                gambarAiUrl: data.image || null,
+                videoAiUrl: data.video || null,
                 waktu: firebase.firestore.FieldValue.serverTimestamp()
             });
             if (typeof window.tampilkanDaftarSidebar === "function") window.tampilkanDaftarSidebar();
@@ -806,9 +833,35 @@ window.ubahNamaChat = function() {
 };
 
 window.toggleSidebar = () => {
-    document.getElementById('sidebar').classList.toggle('sidebar-visible');
-    document.getElementById('sidebar').classList.toggle('sidebar-hidden');
+    const sidebar = document.getElementById('sidebar');
+    const isDesktop = window.innerWidth > 768;
+    if (isDesktop) {
+        sidebar.classList.toggle('sidebar-collapsed');
+        localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('sidebar-collapsed'));
+    } else {
+        sidebar.classList.toggle('sidebar-visible');
+        sidebar.classList.toggle('sidebar-hidden');
+    }
 };
+
+window.filterRiwayat = (keyword) => {
+    const k = keyword.trim().toLowerCase();
+    document.querySelectorAll('#riwayat-list .history-item').forEach((item) => {
+        const text = item.textContent.toLowerCase();
+        item.style.display = !k || text.includes(k) ? 'flex' : 'none';
+    });
+};
+
+// Sidebar selalu persistent di desktop (rail ikon kalau di-collapse), tetap drawer di mobile.
+(function initSidebarState() {
+    const sidebar = document.getElementById('sidebar');
+    if (!sidebar) return;
+    if (window.innerWidth > 768) {
+        sidebar.classList.remove('sidebar-hidden');
+        sidebar.classList.add('sidebar-visible');
+        if (localStorage.getItem('sidebarCollapsed') === 'true') sidebar.classList.add('sidebar-collapsed');
+    }
+})();
 
 window.bukaSetting = function() {
     window.location.href = 'setting.html';
