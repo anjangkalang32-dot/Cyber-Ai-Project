@@ -753,42 +753,100 @@ body.dark-mode .chat-document-chip { background: rgba(255,255,255,0.08); }
     display: none;
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.85);
+    background: rgba(0,0,0,0.88);
+    backdrop-filter: blur(2px);
     z-index: 2000;
     align-items: center;
     justify-content: center;
-    flex-direction: column;
 }
-#image-lightbox-overlay.visible { display: flex; }
+#image-lightbox-overlay.visible {
+    display: flex;
+    animation: lightboxFadeIn 0.18s ease;
+}
+@keyframes lightboxFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
 .lightbox-content {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     max-width: 90vw;
-    max-height: 80vh;
+    max-height: 88vh;
+    animation: lightboxZoomIn 0.2s ease;
+}
+@keyframes lightboxZoomIn {
+    from { transform: scale(0.96); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+.lightbox-content img,
+#lightbox-img {
+    display: block;
+    max-width: 90vw;
+    max-height: 74vh;
+    width: auto;
+    height: auto;
     border-radius: var(--radius-md);
     object-fit: contain;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.5);
 }
+
 .lightbox-actions {
     display: flex;
-    gap: 12px;
-    margin-top: 16px;
+    gap: 10px;
+    margin-top: 18px;
 }
 .lightbox-btn {
-    width: 42px;
-    height: 42px;
+    height: 40px;
+    padding: 0 20px;
+    border-radius: 999px;
+    background: #fff;
+    color: #111;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: opacity 0.15s ease, transform 0.1s ease;
+}
+.lightbox-btn:hover { opacity: 0.88; }
+.lightbox-btn:active { transform: scale(0.97); }
+.lightbox-btn.secondary {
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+}
+.lightbox-btn.secondary:hover { background: rgba(255,255,255,0.2); }
+
+.lightbox-close {
+    position: fixed;
+    top: 20px;
+    right: 24px;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
-    background: rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.1);
     color: #fff;
     border: none;
+    font-size: 1.3rem;
+    line-height: 1;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     transition: background 0.15s ease;
+    z-index: 2001;
 }
-.lightbox-btn:hover { background: rgba(255,255,255,0.3); }
-.lightbox-close {
-    position: absolute;
-    top: 20px;
-    right: 24px;
+.lightbox-close:hover { background: rgba(255,255,255,0.22); }
+
+@media (max-width: 600px) {
+    .lightbox-content img, #lightbox-img { max-height: 62vh; }
+    .lightbox-close { top: 14px; right: 14px; }
 }
 
 /* ===== SCROLLBAR ===== */
