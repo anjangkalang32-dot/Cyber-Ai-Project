@@ -941,6 +941,36 @@ app.get('/test-hf', async (req, res) => {
     }
 });
 
+// Bikin judul chat otomatis (kayak ChatGPT/Gemini) dari pesan pertama user.
+// Sengaja model kecil/cepat & token dibatasi ketat, ini cuma buat judul pendek.
+app.post('/chat/title', async (req, res) => {
+    const { message } = req.body;
+    if (!message || !message.trim()) {
+        return res.json({ title: 'Chat Baru' });
+    }
+    try {
+        const completion = await groq.chat.completions.create({
+            model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+            temperature: 0.3,
+            max_completion_tokens: 20,
+            messages: [
+                {
+                    role: 'system',
+                    content: 'Kamu bikin judul singkat untuk sebuah chat berdasarkan pesan pertama user. Balas HANYA judulnya, 3-6 kata, tanpa tanda kutip, tanpa titik di akhir, tanpa penjelasan tambahan. Bahasa ikuti bahasa pesan user.'
+                },
+                { role: 'user', content: message.slice(0, 500) }
+            ]
+        });
+        let title = completion.choices[0]?.message?.content?.trim() || '';
+        title = title.replace(/^["'“”]+|["'“”]+$/g, '').replace(/\.$/, '').trim();
+        if (!title) title = message.slice(0, 40);
+        res.json({ title: title.slice(0, 60) });
+    } catch (e) {
+        console.error('Gagal generate judul chat:', e.message);
+        res.json({ title: message.slice(0, 40) }); // fallback: potong pesan aslinya
+    }
+});
+
 // Endpoint utama dengan pemilihan model
 app.post('/chat', async (req, res) => {
     const { message, context, image, model, file } = req.body; // model bisa 'groq'/'gpt-oss'/'gemini', file = dokumen non-gambar (opsional)

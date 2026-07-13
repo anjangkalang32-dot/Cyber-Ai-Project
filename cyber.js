@@ -254,6 +254,24 @@ function finalizeStreamingMessage(msgDiv, contentDiv, fullText, sources, imageSr
     scrollToBottom();
 }
 
+// ===== JUDUL CHAT OTOMATIS (kayak ChatGPT/Gemini) =====
+// Dipanggil sekali di awal chat baru, paralel sama request /chat utama
+// biar gak nambah delay ke jawaban AI.
+async function generateChatTitle(pesanPertama) {
+    try {
+        const res = await fetch('/chat/title', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: pesanPertama })
+        });
+        const data = await res.json();
+        return data.title || pesanPertama.slice(0, 40);
+    } catch (e) {
+        console.error('Gagal bikin judul chat otomatis:', e);
+        return pesanPertama.slice(0, 40); // fallback: potong pesan aslinya
+    }
+}
+
 async function sendMessage() {
     const text = userInput.value.trim();
     const user = firebase.auth().currentUser;
@@ -289,6 +307,11 @@ async function sendMessage() {
     userInput.value = "";
     showTypingIndicator();
 
+    // Chat baru (belum punya judul) & ada teks -> minta AI bikinin judul,
+    // jalan BARENGAN sama request jawaban utama (gak nunggu berurutan).
+    const isChatBaru = !localStorage.getItem('currentChatTitle');
+    const titlePromise = (isChatBaru && text) ? generateChatTitle(text) : Promise.resolve(null);
+
     try {
         const res = await fetch('/chat', {
             method: 'POST',
@@ -320,10 +343,14 @@ async function sendMessage() {
             const folderPath = `${user.uid}/${currentChatId}`;
             const gambarUserUrl = await uploadImageToSupabase(currentImage, folderPath);
 
+            const autoTitle = await titlePromise; // sudah jalan paralel dari atas, biasanya udah selesai duluan
+            if (autoTitle) localStorage.setItem('currentChatTitle', autoTitle);
+            const judulUntukDisimpan = localStorage.getItem('currentChatTitle') || "Chat Baru";
+
             await db.collection("riwayat_chat").add({
                 uid: user.uid,
                 chat_id: currentChatId,
-                judul_chat: localStorage.getItem('currentChatTitle') || "Chat Baru",
+                judul_chat: judulUntukDisimpan,
                 pesan: text,
                 gambarUrl: gambarUserUrl,
                 jawaban: replyText,
@@ -786,7 +813,7 @@ window.tampilkanDaftarSidebar = function() {
                     const item = document.createElement('div');
                     item.className = 'history-item';
                     item.innerHTML = `<i class="far fa-comment"></i> <span>${d.judul_chat || d.pesan.substring(0,20)}</span>`;
-                    item.onclick = () => { currentChatId = d.chat_id; localStorage.setItem('activeChatId', d.chat_id); muatRiwayatChat(); };
+                    item.onclick = () => { currentChatId = d.chat_id; localStorage.setItem('activeChatId', d.chat_id); localStorage.setItem('currentChatTitle', d.judul_chat || 'Chat Baru'); muatRiwayatChat(); };
                     listContainer.appendChild(item);
                 }
             });
@@ -819,6 +846,7 @@ window.ubahNamaChat = function() {
                     return batch.commit();
                 })
                 .then(() => {
+                    localStorage.setItem('currentChatTitle', namaBaru);
                     alert("Nama chat berhasil diubah, Bosku!");
                     if (typeof tampilkanDaftarSidebar === "function") {
                         tampilkanDaftarSidebar();
