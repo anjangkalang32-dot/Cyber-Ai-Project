@@ -82,7 +82,11 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    background: transparent;
+    background: var(--bg-main);
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-soft);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
     color: var(--text-primary);
     cursor: pointer;
     z-index: 1200;
