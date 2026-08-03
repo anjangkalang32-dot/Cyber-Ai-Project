@@ -672,6 +672,13 @@ body.dark-mode .chat-document-chip { background: rgba(255,255,255,0.08); }
     font-size: 0.95rem;
     padding: 8px 10px;
     resize: none;
+    font-family: inherit;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    max-height: 200px;
+    overflow-y: auto;
 }
 .composer-input::placeholder { color: var(--text-faint); }
 

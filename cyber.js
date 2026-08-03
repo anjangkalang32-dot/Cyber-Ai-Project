@@ -305,6 +305,7 @@ async function sendMessage() {
     cancelImage();
     cancelDocument();
     userInput.value = "";
+    userInput.style.height = 'auto';
     showTypingIndicator();
 
     // Chat baru (belum punya judul) & ada teks -> minta AI bikinin judul,
@@ -913,7 +914,18 @@ window.mulaiChatBaru = function() {
 };
 
 if (sendBtn) sendBtn.addEventListener('click', sendMessage);
-if (userInput) userInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+if (userInput) {
+    userInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+    userInput.addEventListener('input', () => {
+        userInput.style.height = 'auto';
+        userInput.style.height = Math.min(userInput.scrollHeight, 200) + 'px';
+    });
+}
 
 function updateModelUI() {
     if (!selectedModelLabel || !modelMenu) return;
