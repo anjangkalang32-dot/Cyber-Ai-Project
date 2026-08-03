@@ -10,7 +10,10 @@
     { "src": "kimura2-mountain-477832_1920.jpg", "use": "@vercel/static" },
     { "src": "login.html", "use": "@vercel/static" },
     { "src": "login.css", "use": "@vercel/static" },
-    { "src": "login.js", "use": "@vercel/static" }
+    { "src": "login.js", "use": "@vercel/static" },
+    { "src": "setting.js", "use": "@vercel/static"},
+    { "src": "setting.css", "use": "@vercel/static"},
+    { "src": "setting.html", "use": "@vercel/static"} 
   ],
   "rewrites": [
     { "source": "/", "destination": "cyber.html" },
