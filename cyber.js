@@ -375,15 +375,25 @@ async function sendMessage() {
     const titlePromise = (isChatBaru && text) ? generateChatTitle(text) : Promise.resolve(null);
 
     try {
-        const { fullText, finalPayload } = await streamChatResponse({
-            message: text,
-            context: contextData,
-            image: currentImage,
-            file: currentDocument,
-            model: selectedModel
+        const res = await fetch('/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                message: text,
+                context: contextData,
+                image: currentImage,
+                file: currentDocument,
+                model: selectedModel
+            })
         });
 
-        const replyText = fullText || 'Duh Bosku, aku lagi ngelamun. Tanya lagi yuk!';
+        const data = await res.json();
+        hideTypingIndicator();
+
+        const replyText = data.reply || 'Duh Bosku, aku lagi ngelamun. Tanya lagi yuk!';
+        const msgEl = createStreamingAiMessage();
+        updateStreamingContent(msgEl.contentDiv, replyText);
+        finalizeStreamingMessage(msgEl.msgDiv, msgEl.contentDiv, replyText, data.sources || null, data.image || null, data.video || null);
 
         if (user) {
             supabaseClient.from('ai_memories').insert([{
@@ -406,8 +416,8 @@ async function sendMessage() {
                 pesan: text,
                 gambarUrl: gambarUserUrl,
                 jawaban: replyText,
-                gambarAiUrl: finalPayload.image || null,
-                videoAiUrl: finalPayload.video || null,
+                gambarAiUrl: data.image || null,
+                videoAiUrl: data.video || null,
                 waktu: firebase.firestore.FieldValue.serverTimestamp()
             });
             if (typeof window.tampilkanDaftarSidebar === "function") window.tampilkanDaftarSidebar();
@@ -421,102 +431,6 @@ async function sendMessage() {
         sendBtn.innerHTML = originalBtn;
         sendBtn.disabled = false;
     }
-}
-
-// ===== KONSUMSI SSE DARI /chat/stream (fetch + ReadableStream, bukan EventSource, =====
-// karena EventSource cuma bisa GET sedangkan kita perlu kirim body POST).
-// Balikin { fullText, finalPayload } setelah stream selesai ({done:true} diterima).
-async function streamChatResponse(payload) {
-    const res = await fetch('/chat/stream', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-    });
-
-    if (!res.ok || !res.body) {
-        // Fallback: server gagal streaming (mis. 500), coba jalur biasa /chat.
-        hideTypingIndicator();
-        const fallbackRes = await fetch('/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        const data = await fallbackRes.json();
-        const replyText = data.reply || 'Duh Bosku, aku lagi ngelamun. Tanya lagi yuk!';
-        const msgEl = createStreamingAiMessage();
-        updateStreamingContent(msgEl.contentDiv, replyText);
-        finalizeStreamingMessage(msgEl.msgDiv, msgEl.contentDiv, replyText, data.sources || null, data.image || null, data.video || null);
-        return { fullText: replyText, finalPayload: data };
-    }
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder('utf-8');
-
-    let buffer = '';
-    let fullText = '';
-    let msgEl = null;
-    let finalPayload = {};
-
-    const handleEvent = (rawEvent) => {
-        // Tiap event SSE bisa punya beberapa baris ("data: ..." dan komentar ": ping").
-        // Ambil semua baris "data:" lalu gabung (biasanya cuma satu baris per event di sini).
-        const dataLines = rawEvent
-            .split('\n')
-            .filter(line => line.startsWith('data:'))
-            .map(line => line.slice(5).trim());
-
-        if (dataLines.length === 0) return; // cuma komentar/ping, skip
-
-        let parsedPayload;
-        try {
-            parsedPayload = JSON.parse(dataLines.join(''));
-        } catch (e) {
-            return; // event nggak valid JSON, abaikan
-        }
-
-        if (parsedPayload.delta) {
-            if (!msgEl) {
-                hideTypingIndicator();
-                msgEl = createStreamingAiMessage();
-            }
-            fullText += parsedPayload.delta;
-            updateStreamingContent(msgEl.contentDiv, fullText);
-        }
-
-        if (parsedPayload.done) {
-            finalPayload = parsedPayload;
-        }
-    };
-
-    while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-
-        // Event SSE dipisah oleh baris kosong ("\n\n").
-        let boundary;
-        while ((boundary = buffer.indexOf('\n\n')) !== -1) {
-            const rawEvent = buffer.slice(0, boundary);
-            buffer = buffer.slice(boundary + 2);
-            if (rawEvent.trim()) handleEvent(rawEvent);
-        }
-    }
-    if (buffer.trim()) handleEvent(buffer); // sisa buffer terakhir (kalau ada, tanpa \n\n penutup)
-
-    hideTypingIndicator();
-    if (!msgEl) msgEl = createStreamingAiMessage(); // jaga-jaga: stream sukses tapi 0 delta
-
-    finalizeStreamingMessage(
-        msgEl.msgDiv,
-        msgEl.contentDiv,
-        fullText,
-        finalPayload.sources || null,
-        finalPayload.image || null,
-        finalPayload.video || null
-    );
-
-    return { fullText, finalPayload };
 }
 
 function scrollToBottom() {
