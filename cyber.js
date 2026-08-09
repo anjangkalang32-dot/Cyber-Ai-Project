@@ -448,20 +448,136 @@ function escapeHtml(str) {
         .replace(/>/g, '&gt;');
 }
 
-// Format teks AI di LUAR blok kode: hapus notasi LaTeX kasar, bold **teks**, inline `code`.
-// PENTING: ini cuma dipanggil untuk bagian teks biasa, bukan isi blok kode -- soalnya
-// strip backslash di sini bisa ngerusak kode (regex, path Windows, escape sequence, dll).
-function formatPlainAiText(text) {
-    let cleaned = text
+// Suntik CSS sekali aja buat rapiin heading/list/paragraf hasil markdown AI,
+// biar gak tergantung sama stylesheet eksternal yang mungkin belum punya aturan ini.
+(function injectMarkdownStyles() {
+    if (document.getElementById('ws-markdown-style')) return; // jangan dobel
+    const style = document.createElement('style');
+    style.id = 'ws-markdown-style';
+    style.textContent = `
+        .msg-content { line-height: 1.55; }
+        .msg-content p { margin: 0 0 10px; }
+        .msg-content p:last-child { margin-bottom: 0; }
+        .msg-content ul.msg-list,
+        .msg-content ol.msg-list {
+            margin: 4px 0 12px;
+            padding-left: 22px;
+        }
+        .msg-content ul.msg-list { list-style: disc; }
+        .msg-content ol.msg-list { list-style: decimal; }
+        .msg-content li { margin-bottom: 6px; }
+        .msg-content li:last-child { margin-bottom: 0; }
+        .msg-content li > ul.msg-list,
+        .msg-content li > ol.msg-list { margin: 6px 0 0; }
+        .msg-heading {
+            margin: 14px 0 8px;
+            font-weight: 700;
+            line-height: 1.3;
+        }
+        .msg-content > .msg-heading:first-child { margin-top: 0; }
+        h4.msg-heading { font-size: 1.15em; }
+        h5.msg-heading { font-size: 1.08em; }
+        h6.msg-heading { font-size: 1em; }
+        .msg-content code.inline-code {
+            padding: 1px 5px;
+            border-radius: 4px;
+            background: rgba(127,127,127,0.18);
+            font-size: 0.92em;
+        }
+    `;
+    document.head.appendChild(style);
+})();
+
+// Format inline SAJA (bold **teks**, italic *teks*, inline `code`) untuk satu baris teks.
+// Dipakai di dalam markdownToHtml, bukan buat teks multi-baris langsung.
+function formatInlineAiText(line) {
+    let cleaned = line
         .replace(/\$/g, '')
         .replace(/\\frac\{(.*?)\}\{(.*?)\}/g, '($1 / $2)')
         .replace(/\\times/g, 'x')
         .replace(/\\cdot/g, '.')
         .replace(/\\/g, '');
     let escaped = escapeHtml(cleaned);
-    escaped = escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    escaped = escaped.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
+    escaped = escaped.replace(/`([^`]+)`/g, (m, code) => `<code class="inline-code">${code}</code>`);
+    escaped = escaped.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    escaped = escaped.replace(/(^|[^*\w])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
     return escaped;
+}
+
+// Ubah teks markdown (heading, list bernomor/bullet, paragraf) jadi HTML rapi.
+// PENTING: ini cuma dipanggil untuk bagian teks biasa, bukan isi blok kode -- soalnya
+// strip backslash di sini bisa ngerusak kode (regex, path Windows, escape sequence, dll).
+function markdownToHtml(text) {
+    // Kalau model nulis "1. **Judul** - keterangan 2. **Judul lain** - ..." dalam satu baris
+    // panjang (tanpa newline beneran), pecah dulu jadi baris terpisah tiap nomor baru,
+    // biar tetap kebaca sebagai list meski AI lupa kasih newline.
+    const normalized = text.replace(/([^\n])\s+(\d+)\.\s+(?=\*\*|[A-Za-z0-9])/g, '$1\n$2. ');
+
+    const lines = normalized.replace(/\r\n/g, '\n').split('\n');
+    let html = '';
+    let listType = null; // 'ul' | 'ol' | null
+    let paragraphBuffer = [];
+
+    const flushParagraph = () => {
+        if (paragraphBuffer.length) {
+            html += `<p>${paragraphBuffer.join('<br>')}</p>`;
+            paragraphBuffer = [];
+        }
+    };
+    const closeList = () => {
+        if (listType) {
+            html += `</${listType}>`;
+            listType = null;
+        }
+    };
+
+    for (const rawLine of lines) {
+        const line = rawLine.trim();
+
+        if (line === '') {
+            flushParagraph();
+            closeList();
+            continue;
+        }
+
+        const headingMatch = line.match(/^(#{1,4})\s+(.+)$/);
+        if (headingMatch) {
+            flushParagraph();
+            closeList();
+            const level = Math.min(headingMatch[1].length + 3, 6); // # -> h4 ... #### -> h6
+            html += `<h${level} class="msg-heading">${formatInlineAiText(headingMatch[2])}</h${level}>`;
+            continue;
+        }
+
+        const ulMatch = line.match(/^[-*•]\s+(.+)$/);
+        if (ulMatch) {
+            flushParagraph();
+            if (listType !== 'ul') { closeList(); html += '<ul class="msg-list">'; listType = 'ul'; }
+            html += `<li>${formatInlineAiText(ulMatch[1])}</li>`;
+            continue;
+        }
+
+        const olMatch = line.match(/^(\d+)[.)]\s+(.+)$/);
+        if (olMatch) {
+            flushParagraph();
+            if (listType !== 'ol') { closeList(); html += '<ol class="msg-list">'; listType = 'ol'; }
+            html += `<li>${formatInlineAiText(olMatch[2])}</li>`;
+            continue;
+        }
+
+        closeList();
+        paragraphBuffer.push(formatInlineAiText(line));
+    }
+
+    flushParagraph();
+    closeList();
+
+    return html || formatInlineAiText(text);
+}
+
+// Alias biar kompatibel dengan kode lama yang masih manggil nama ini.
+function formatPlainAiText(text) {
+    return markdownToHtml(text);
 }
 
 // Format teks user: cuma escape HTML + dukung **bold**, tanpa strip LaTeX (pesan user apa adanya).
@@ -557,12 +673,11 @@ function buildCodeBlockElement(lang, code) {
     return wrapper;
 }
 
-// Satu blok teks biasa (bukan kode) -- pola list/soal yang sudah ada tetap dipertahankan.
+// Satu blok teks biasa (bukan kode) -- dirender lewat markdownToHtml (heading/list/paragraf).
 function appendPlainTextBlock(fragment, text) {
-    const isListOrSoal = /\d+\./.test(text) || text.includes('\n');
     const div = document.createElement('div');
-    div.className = isListOrSoal ? 'msg-content list-mode' : 'msg-content';
-    div.innerHTML = formatPlainAiText(text);
+    div.className = 'msg-content';
+    div.innerHTML = markdownToHtml(text);
     fragment.appendChild(div);
 }
 
