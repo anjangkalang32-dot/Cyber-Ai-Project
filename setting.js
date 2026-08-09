@@ -15,8 +15,8 @@ if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
 // ===== WARNA KUSTOM: DEFAULT & STATE =====
-const DEFAULT_BG = '#d0e3ff';
-const DEFAULT_TEXT = '#15181c';
+const DEFAULT_BG = '#ffffff';
+const DEFAULT_TEXT = '#000000';
 let warnaBgTersimpan = localStorage.getItem('customBgColor') || DEFAULT_BG;
 let warnaTextTersimpan = localStorage.getItem('customTextColor') || DEFAULT_TEXT;
 

@@ -17,6 +17,9 @@
   ],
   "rewrites": [
     { "source": "/", "destination": "cyber.html" },
+    { "source": "/c", "destination": "cyber.html" },
+    { "source": "/c/:id", "destination": "cyber.html" },
+    { "source": "/setting", "destination": "setting.html" },
     { "source": "/(.*)", "destination": "server.js" }
   ]
 }

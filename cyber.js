@@ -1,4 +1,27 @@
-let currentChatId = localStorage.getItem('activeChatId') || Date.now().toString();
+// ===== ID CHAT: UUID v4, disinkronkan dengan URL (?chat=...) =====
+function generateUUID() {
+    // crypto.randomUUID() didukung semua browser modern, gak perlu library tambahan
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
+    // fallback jaga-jaga buat browser lawas
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+        const r = Math.random() * 16 | 0;
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+}
+function getChatIdFromUrl() {
+    const match = window.location.pathname.match(/^\/c\/([^/]+)\/?$/);
+    return match ? match[1] : null;
+}
+function syncChatUrl(id, push = true) {
+    const url = `/c/${id}`;
+    if (push) history.pushState({ chatId: id }, '', url);
+    else history.replaceState({ chatId: id }, '', url);
+}
+
+let currentChatId = getChatIdFromUrl() || localStorage.getItem('activeChatId') || generateUUID();
+localStorage.setItem('activeChatId', currentChatId);
+syncChatUrl(currentChatId, false); // replaceState: gak nambah entry history baru pas load pertama
+
 let isLoaded = false;
 let pendingImage = null;
 let pendingDocument = null; // { data: dataURL, filename, mimeType } -- buat PDF/Word/Excel/CSV/TXT/JSON
@@ -18,8 +41,16 @@ window.addEventListener('storage', (e) => {
 function terapkanWarnaKustom() {
     const bg = localStorage.getItem('customBgColor');
     const text = localStorage.getItem('customTextColor');
-    if (bg) document.documentElement.style.setProperty('--user-bg', bg);
-    if (text) document.documentElement.style.setProperty('--user-text', text);
+    const root = document.documentElement;
+    if (bg) {
+        root.style.setProperty('--user-bg', bg);
+        root.style.setProperty('--bg-main', bg); // variabel utama background di cyber.css
+        root.style.setProperty('--bg-sidebar', bg); // background sidebar
+    }
+    if (text) {
+        root.style.setProperty('--user-text', text);
+        root.style.setProperty('--text-primary', text); // variabel utama warna teks di cyber.css
+    }
 }
 terapkanWarnaKustom();
 
@@ -30,6 +61,33 @@ window.addEventListener('storage', (e) => {
 });
 
 const chatBox = document.getElementById('chat-box');
+
+// ===== SAPAAN WELCOME SCREEN (ganti logo besar jadi teks sapaan) =====
+function sapaanWaktu() {
+    const jam = new Date().getHours();
+    if (jam >= 4 && jam < 11) return 'Selamat Pagi';
+    if (jam >= 11 && jam < 15) return 'Selamat Siang';
+    if (jam >= 15 && jam < 19) return 'Selamat Sore';
+    return 'Selamat Malam';
+}
+function namaUserSaatIni() {
+    const user = firebase.auth().currentUser;
+    if (!user) return 'Sobat';
+    if (user.displayName) return user.displayName.trim().split(' ')[0];
+    if (user.email) return user.email.split('@')[0];
+    return 'Sobat';
+}
+function welcomeScreenHTML() {
+    return `
+        <div id="welcome-screen">
+            <h2 class="welcome-greeting">${sapaanWaktu()}, <span class="welcome-username">${namaUserSaatIni()}</span> 👋</h2>
+            <p class="welcome-sub">Ada yang bisa Whale Shark bantu hari ini?</p>
+        </div>`;
+}
+function renderWelcomeScreen() {
+    if (chatBox) chatBox.innerHTML = welcomeScreenHTML();
+}
+
 const userInput = document.getElementById('user-input');
 const sendBtn = document.getElementById('send-button');
 const fileInput = document.getElementById('file-input'); 
@@ -60,11 +118,13 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+renderWelcomeScreen(); // baru aman dipanggil di sini, Firebase sudah siap
 
 // ===== Isi user-pill di sidebar kalau lagi login (gak ganggu flow login/redirect yang ada) =====
 firebase.auth().onAuthStateChanged((user) => {
     const nameEl = document.querySelector('.user-pill .user-name');
     const avatarEl = document.querySelector('.user-pill .user-avatar');
+    if (document.getElementById('welcome-screen')) renderWelcomeScreen(); // update sapaan pas nama user sudah kebaca
     if (!nameEl || !avatarEl) return;
     if (user) {
         nameEl.textContent = user.displayName || user.email || 'Akun Saya';
@@ -72,6 +132,7 @@ firebase.auth().onAuthStateChanged((user) => {
             ? `<img src="${user.photoURL}" alt="avatar">`
             : `<i class="fa-solid fa-user"></i>`;
         if (typeof window.tampilkanDaftarSidebar === 'function') window.tampilkanDaftarSidebar();
+        if (typeof window.muatRiwayatChat === 'function') window.muatRiwayatChat(); // muat chat yang lagi aktif (dari URL/localStorage)
     } else {
         nameEl.textContent = 'Akun Saya';
         avatarEl.innerHTML = `<i class="fa-solid fa-user"></i>`;
@@ -777,7 +838,7 @@ firebase.auth().onAuthStateChanged((user) => {
     if (user) {
         document.getElementById('login-btn').innerHTML = `<img src="${user.photoURL}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
         if (!isLoaded) { isLoaded = true; muatRiwayatChat(); tampilkanDaftarSidebar(); }
-    } else { window.location.href = "login.html"; }
+    } else { window.location.href = "/login.html"; }
 });
 
 window.muatRiwayatChat = function() {
@@ -789,6 +850,7 @@ window.muatRiwayatChat = function() {
             .orderBy("waktu", "asc")
             .get()
             .then((snap) => {
+                if (snap.empty) { renderWelcomeScreen(); return; } // chat baru/kosong -> tetap tampil sapaan
                 chatBox.innerHTML = "";
                 snap.forEach((doc) => {
                     const d = doc.data();
@@ -814,7 +876,14 @@ window.tampilkanDaftarSidebar = function() {
                     const item = document.createElement('div');
                     item.className = 'history-item';
                     item.innerHTML = `<i class="far fa-comment"></i> <span>${d.judul_chat || d.pesan.substring(0,20)}</span>`;
-                    item.onclick = () => { currentChatId = d.chat_id; localStorage.setItem('activeChatId', d.chat_id); localStorage.setItem('currentChatTitle', d.judul_chat || 'Chat Baru'); muatRiwayatChat(); };
+                    item.onclick = () => {
+                        currentChatId = d.chat_id;
+                        localStorage.setItem('activeChatId', d.chat_id);
+                        localStorage.setItem('currentChatTitle', d.judul_chat || 'Chat Baru');
+                        syncChatUrl(d.chat_id); // update URL biar bisa di-refresh/share balik ke chat ini
+                        muatRiwayatChat();
+                        if (window.innerWidth < 768) document.getElementById('sidebar').classList.add('sidebar-hidden');
+                    };
                     listContainer.appendChild(item);
                 }
             });
@@ -893,18 +962,29 @@ window.filterRiwayat = (keyword) => {
 })();
 
 window.bukaSetting = function() {
-    window.location.href = 'setting.html';
+    window.location.href = '/setting';
 };
 
+// Tombol back/forward browser -> pindah chat sesuai ID di URL, bukan keluar app
+window.addEventListener('popstate', () => {
+    const idFromUrl = getChatIdFromUrl();
+    currentChatId = idFromUrl || generateUUID();
+    localStorage.setItem('activeChatId', currentChatId);
+    if (firebase.auth().currentUser) {
+        muatRiwayatChat();
+    } else {
+        renderWelcomeScreen();
+    }
+    if (window.innerWidth < 768) document.getElementById('sidebar').classList.add('sidebar-hidden');
+});
+
 window.mulaiChatBaru = function() {
-    currentChatId = Date.now().toString(); 
+    currentChatId = generateUUID();
     localStorage.setItem('activeChatId', currentChatId);
     localStorage.removeItem('currentChatTitle');
-    
-    chatBox.innerHTML = `
-        <div id="welcome-screen" class="welcome-container">
-            <img src="whale_shark.png" alt="Logo" class="welcome-logo">
-        </div>`;
+    syncChatUrl(currentChatId); // pushState: nambah entry history baru, bisa di-back
+
+    renderWelcomeScreen();
     
     if (window.innerWidth < 768) {
         document.getElementById('sidebar').classList.add('sidebar-hidden');

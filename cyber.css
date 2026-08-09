@@ -360,13 +360,25 @@ body {
     width: 84px;
     height: auto;
     margin: 0 auto !important;
-    border-radius: 50%;
-    box-shadow: var(--shadow-soft);
 }
 #welcome-screen p {
     margin: 0 !important;
     color: var(--text-secondary);
     font-size: 1.05rem;
+    font-weight: 500;
+}
+.welcome-greeting {
+    margin: 0 !important;
+    font-size: 1.7rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.35;
+}
+.welcome-username { color: var(--accent); }
+.welcome-sub {
+    margin: 0 !important;
+    color: var(--text-secondary);
+    font-size: 1rem;
     font-weight: 500;
 }
 
