@@ -459,14 +459,14 @@ body {
 .inline-code {
     background: var(--hover-bg);
     padding: 2px 6px;
-    border-radius: 6px;
+    border-radius: 10px;
     font-family: 'JetBrains Mono', ui-monospace, monospace;
     font-size: 0.85em;
 }
 
 /* ===== CODE BLOCKS ===== */
 .code-block-wrapper {
-    background: #1e1e1e;
+    background: #0e0e0e;
     border-radius: var(--radius-sm);
     overflow: hidden;
     margin: 10px 0;
@@ -477,7 +477,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: #2a2a2a;
+    background: #000000;
     padding: 8px 14px;
 }
 .code-block-lang {
