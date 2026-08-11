@@ -28,6 +28,18 @@ syncChatUrl(currentChatId, false); // replaceState: gak nambah entry history bar
 // null artinya: chat ini belum punya judul -> perlu digenerate AI pas pesan pertama dikirim.
 let currentChatTitleCache = null;
 
+// Riwayat percakapan chat yang lagi AKTIF (in-memory, per-chat) -- ini yang dikirim
+// ke server tiap kirim pesan baru, biar AI beneran "inget" konteks obrolan sebelumnya
+// dalam chat ini (sebelumnya cuma pesan terakhir doang yang dikirim, makanya AI lupa
+// begitu ditanya lanjutan kayak "tadi saya suruh apa?").
+// Format: [{ role: 'user'|'assistant', content: '...' }, ...]
+let conversationHistory = [];
+// Biar prompt gak membengkak & boros token, cuma kirim N pertukaran terakhir (user+AI = 1 pertukaran).
+const MAX_HISTORY_TURNS = 8;
+function trimHistory(history) {
+    return history.slice(-MAX_HISTORY_TURNS * 2);
+}
+
 let isLoaded = false;
 let pendingImage = null;
 let pendingDocument = null; // { data: dataURL, filename, mimeType } -- buat PDF/Word/Excel/CSV/TXT/JSON
@@ -380,6 +392,10 @@ async function sendMessage() {
     const isChatBaru = !!user && !currentChatTitleCache;
     const titlePromise = (isChatBaru && text) ? generateChatTitle(text) : Promise.resolve(null);
 
+    // Riwayat percakapan SEBELUM pesan ini (snapshot), buat dikirim ke server sebagai konteks
+    // multi-turn -- ini yang bikin AI "inget" apa yang udah dibahas di chat ini sebelumnya.
+    const historyForRequest = trimHistory(conversationHistory);
+
     try {
         const res = await fetch('/chat', {
             method: 'POST',
@@ -387,6 +403,7 @@ async function sendMessage() {
             body: JSON.stringify({
                 message: text,
                 context: contextData,
+                history: historyForRequest,
                 image: currentImage,
                 file: currentDocument,
                 model: selectedModel
@@ -400,6 +417,12 @@ async function sendMessage() {
         const msgEl = createStreamingAiMessage();
         updateStreamingContent(msgEl.contentDiv, replyText);
         finalizeStreamingMessage(msgEl.msgDiv, msgEl.contentDiv, replyText, data.sources || null, data.image || null, data.video || null);
+
+        // Catat pertukaran ini ke riwayat in-memory, biar pesan BERIKUTNYA di chat ini
+        // ikut bawa konteks obrolan sekarang.
+        conversationHistory.push({ role: 'user', content: text || (currentImage ? '[Mengirim gambar]' : '[Mengirim dokumen]') });
+        conversationHistory.push({ role: 'assistant', content: replyText });
+        conversationHistory = trimHistory(conversationHistory);
 
         if (user) {
             supabaseClient.from('ai_memories').insert([{
@@ -1057,15 +1080,21 @@ window.muatRiwayatChat = function() {
             .orderBy("waktu", "asc")
             .get()
             .then((snap) => {
-                if (snap.empty) { currentChatTitleCache = null; renderWelcomeScreen(); return; } // chat baru/kosong -> tetap tampil sapaan
+                if (snap.empty) { currentChatTitleCache = null; conversationHistory = []; renderWelcomeScreen(); return; } // chat baru/kosong -> tetap tampil sapaan
                 chatBox.innerHTML = "";
                 let lastTitle = null;
+                const rebuiltHistory = [];
                 snap.forEach((doc) => {
                     const d = doc.data();
                     appendMessage('user', d.pesan, d.gambarUrl);
                     if (d.jawaban) appendMessage('ai', d.jawaban, d.gambarAiUrl, d.videoAiUrl);
                     if (d.judul_chat) lastTitle = d.judul_chat;
+                    // Susun ulang riwayat percakapan dari Firestore, biar AI tetap "inget"
+                    // konteks lama walau user reload halaman atau baru buka chat lama ini.
+                    if (d.pesan) rebuiltHistory.push({ role: 'user', content: d.pesan });
+                    if (d.jawaban) rebuiltHistory.push({ role: 'assistant', content: d.jawaban });
                 });
+                conversationHistory = trimHistory(rebuiltHistory);
                 // Chat ini udah pernah punya judul (tersimpan di Firestore) -> pakai itu,
                 // biar gak dikira "chat baru" dan malah minta AI bikin judul baru lagi.
                 currentChatTitleCache = lastTitle;
@@ -1183,6 +1212,7 @@ window.addEventListener('popstate', () => {
     currentChatId = idFromUrl || generateUUID();
     localStorage.setItem('activeChatId', currentChatId);
     currentChatTitleCache = null; // reset -- muatRiwayatChat() di bawah bakal isi ulang kalau chat ini emang udah punya judul
+    conversationHistory = []; // reset juga -- muatRiwayatChat() bakal susun ulang dari Firestore kalau ada
     if (firebase.auth().currentUser) {
         muatRiwayatChat();
     } else {
@@ -1195,6 +1225,7 @@ window.mulaiChatBaru = function() {
     currentChatId = generateUUID();
     localStorage.setItem('activeChatId', currentChatId);
     currentChatTitleCache = null;
+    conversationHistory = [];
     syncChatUrl(currentChatId); // pushState: nambah entry history baru, bisa di-back
 
     renderWelcomeScreen();

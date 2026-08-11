@@ -122,10 +122,34 @@ Jika user meminta kode:
 Selalu utamakan jawaban yang jelas, akurat, dan mudah dipahami.`;
 
 // Fungsi untuk memanggil Groq
-async function callGroq(message, context, image, modelName = "meta-llama/llama-4-scout-17b-16e-instruct", extraContext = "") {
+// Ubah [{role,content}] jadi format messages Groq (dipakai callGroq & callGroqStream).
+// Dibatasi juga di sisi server (jaga-jaga kalau ada yang manggil endpoint langsung tanpa lewat frontend).
+function buildHistoryMessagesForGroq(history) {
+    if (!Array.isArray(history)) return [];
+    return history
+        .filter(h => h && (h.role === 'user' || h.role === 'assistant') && h.content)
+        .slice(-16) // maks 8 pertukaran (user+assistant)
+        .map(h => ({ role: h.role, content: String(h.content).slice(0, 4000) }));
+}
+
+// Versi teks buat Gemini (yang di kode ini pakai fullPrompt string, bukan array messages).
+function buildHistoryTranscriptForGemini(history) {
+    if (!Array.isArray(history) || history.length === 0) return "";
+    return history
+        .filter(h => h && (h.role === 'user' || h.role === 'assistant') && h.content)
+        .slice(-16)
+        .map(h => `${h.role === 'user' ? 'User' : 'AI'}: ${String(h.content).slice(0, 4000)}`)
+        .join('\n');
+}
+
+async function callGroq(message, context, image, modelName = "meta-llama/llama-4-scout-17b-16e-instruct", extraContext = "", history = []) {
     const messagesForAI = [
         { role: "system", content: systemPrompt }
     ];
+
+    // Riwayat percakapan chat ini (multi-turn beneran) -- ditaruh SEBELUM memori/extra
+    // context supaya urutannya alami: obrolan sebelumnya, baru info tambahan, baru pesan sekarang.
+    messagesForAI.push(...buildHistoryMessagesForGroq(history));
 
     if (context) {
         messagesForAI.push({ role: "user", content: `Memori Chat: ${context}` });
@@ -179,7 +203,7 @@ async function callGroq(message, context, image, modelName = "meta-llama/llama-4
 }
 
 // Fungsi untuk memanggil Gemini
-async function callGemini(message, context, image, extraContext = "") {
+async function callGemini(message, context, image, extraContext = "", history = []) {
     let model;
     let result;
     // Use API model identifier (no spaces). Change here if your project uses another Gemini model id.
@@ -207,6 +231,10 @@ async function callGemini(message, context, image, extraContext = "") {
         
         // Buat history chat
         let fullPrompt = systemPrompt + "\n\n";
+        const historyTranscript = buildHistoryTranscriptForGemini(history);
+        if (historyTranscript) {
+            fullPrompt += `[RIWAYAT OBROLAN SEBELUMNYA DI CHAT INI]\n${historyTranscript}\n\n`;
+        }
         if (context) {
             fullPrompt += `[MEMORI SEBELUMNYA: ${context}]\n\n`;
         }
@@ -226,10 +254,12 @@ async function callGemini(message, context, image, extraContext = "") {
 // tapi manggil onChunk(potongan_teks) tiap ada potongan baru yang nyampe dari API.
 // Tetep return teks lengkapnya juga di akhir, buat disimpen ke memori/riwayat.
 
-async function callGroqStream(message, context, image, modelName = "meta-llama/llama-4-scout-17b-16e-instruct", extraContext = "", onChunk = () => {}) {
+async function callGroqStream(message, context, image, modelName = "meta-llama/llama-4-scout-17b-16e-instruct", extraContext = "", onChunk = () => {}, history = []) {
     const messagesForAI = [
         { role: "system", content: systemPrompt }
     ];
+
+    messagesForAI.push(...buildHistoryMessagesForGroq(history));
 
     if (context) {
         messagesForAI.push({ role: "user", content: `Memori Chat: ${context}` });
@@ -302,7 +332,7 @@ async function callGroqStream(message, context, image, modelName = "meta-llama/l
     return fullText || "Duh Bosku, aku lagi ngelamun. Tanya lagi yuk!";
 }
 
-async function callGeminiStream(message, context, image, extraContext = "", onChunk = () => {}) {
+async function callGeminiStream(message, context, image, extraContext = "", onChunk = () => {}, history = []) {
     const geminiModelName = "gemini-3.5-flash";
     const model = genAI.getGenerativeModel({ model: geminiModelName });
 
@@ -317,6 +347,10 @@ async function callGeminiStream(message, context, image, extraContext = "", onCh
         ]);
     } else {
         let fullPrompt = systemPrompt + "\n\n";
+        const historyTranscript = buildHistoryTranscriptForGemini(history);
+        if (historyTranscript) {
+            fullPrompt += `[RIWAYAT OBROLAN SEBELUMNYA DI CHAT INI]\n${historyTranscript}\n\n`;
+        }
         if (context) {
             fullPrompt += `[MEMORI SEBELUMNYA: ${context}]\n\n`;
         }
@@ -977,7 +1011,7 @@ app.post('/chat/title', async (req, res) => {
 
 // Endpoint utama dengan pemilihan model
 app.post('/chat', async (req, res) => {
-    const { message, context, image, model, file } = req.body; // model bisa 'groq'/'gpt-oss'/'gemini', file = dokumen non-gambar (opsional)
+    const { message, context, image, model, file, history } = req.body; // model bisa 'groq'/'gpt-oss'/'gemini', file = dokumen non-gambar (opsional), history = riwayat percakapan chat ini
     
     // Default ke groq jika tidak ditentukan
     let selectedModel = model || 'groq';
@@ -1103,20 +1137,20 @@ app.post('/chat', async (req, res) => {
         console.log(`📡 Menggunakan model: ${selectedModel.toUpperCase()}`);
         if (selectedModel === 'gemini') {
             try {
-                replyText = await callGemini(message, context, image, extraContext);
+                replyText = await callGemini(message, context, image, extraContext, history);
             } catch (geminiError) {
                 if (isGeminiQuotaError(geminiError)) {
                     console.warn('Gemini quota exceeded, fallback ke Groq:', geminiError.message);
-                    replyText = await callGroq(message, context, image, undefined, extraContext);
+                    replyText = await callGroq(message, context, image, undefined, extraContext, history);
                     selectedModel = 'groq';
                 } else {
                     throw geminiError;
                 }
             }
         } else if (selectedModel === 'gpt-oss') {
-            replyText = await callGroq(message, context, image, 'openai/gpt-oss-120b', extraContext);
+            replyText = await callGroq(message, context, image, 'openai/gpt-oss-120b', extraContext, history);
         } else {
-            replyText = await callGroq(message, context, image, undefined, extraContext);
+            replyText = await callGroq(message, context, image, undefined, extraContext, history);
         }
         
         res.json({ 
@@ -1135,9 +1169,9 @@ app.post('/chat', async (req, res) => {
             let fallbackReply;
             
             if (fallbackModel === 'gemini') {
-                fallbackReply = await callGemini(message, context, image);
+                fallbackReply = await callGemini(message, context, image, "", history);
             } else {
-                fallbackReply = await callGroq(message, context, image);
+                fallbackReply = await callGroq(message, context, image, undefined, "", history);
             }
             
             res.json({ 
@@ -1162,7 +1196,7 @@ app.post('/chat', async (req, res) => {
 //   - { delta: "..." }              -> potongan teks baru, ditambahin ke teks yang udah ada
 //   - { done: true, modelUsed, sources, image, video } -> tanda selesai + metadata tambahan
 app.post('/chat/stream', async (req, res) => {
-    const { message, context, image, model, file } = req.body;
+    const { message, context, image, model, file, history } = req.body;
     let selectedModel = model || 'groq';
     console.log(`\n=== /chat/stream MULAI === model=${selectedModel}, message="${String(message).slice(0, 60)}"`);
 
@@ -1288,7 +1322,7 @@ app.post('/chat/stream', async (req, res) => {
             }, 5000);
             let gptOssText;
             try {
-                gptOssText = await callGroq(message, context, image, 'openai/gpt-oss-120b', extraContext);
+                gptOssText = await callGroq(message, context, image, 'openai/gpt-oss-120b', extraContext, history);
             } finally {
                 clearInterval(heartbeat);
             }
@@ -1297,18 +1331,18 @@ app.post('/chat/stream', async (req, res) => {
             chunkCount++;
         } else if (selectedModel === 'gemini') {
             try {
-                await callGeminiStream(message, context, image, extraContext, onChunk);
+                await callGeminiStream(message, context, image, extraContext, onChunk, history);
             } catch (geminiError) {
                 if (isGeminiQuotaError(geminiError)) {
                     console.warn('Gemini quota exceeded (stream), fallback ke Groq:', geminiError.message);
                     selectedModel = 'groq';
-                    await callGroqStream(message, context, image, undefined, extraContext, onChunk);
+                    await callGroqStream(message, context, image, undefined, extraContext, onChunk, history);
                 } else {
                     throw geminiError;
                 }
             }
         } else {
-            await callGroqStream(message, context, image, undefined, extraContext, onChunk);
+            await callGroqStream(message, context, image, undefined, extraContext, onChunk, history);
         }
 
         // ===== SAFETY NET =====
@@ -1322,11 +1356,11 @@ app.post('/chat/stream', async (req, res) => {
             try {
                 let fallbackText;
                 if (selectedModel === 'gemini') {
-                    fallbackText = await callGemini(message, context, image, extraContext);
+                    fallbackText = await callGemini(message, context, image, extraContext, history);
                 } else if (selectedModel === 'gpt-oss') {
-                    fallbackText = await callGroq(message, context, image, 'openai/gpt-oss-120b', extraContext);
+                    fallbackText = await callGroq(message, context, image, 'openai/gpt-oss-120b', extraContext, history);
                 } else {
-                    fallbackText = await callGroq(message, context, image, undefined, extraContext);
+                    fallbackText = await callGroq(message, context, image, undefined, extraContext, history);
                 }
                 send({ delta: fallbackText });
             } catch (fallbackErr) {
