@@ -1323,6 +1323,7 @@ async function checkModelStatus() {
     }
 }
 
-// Start polling every 20 seconds
+// Start polling every 2 minutes (server-nya sendiri udah cache hasil ping selama 5 menit,
+// jadi polling sesering mungkin dari sini gak nambah beban -- cuma bikin UI update lebih cepat).
 checkModelStatus();
-setInterval(checkModelStatus, 20000);
+setInterval(checkModelStatus, 120000);

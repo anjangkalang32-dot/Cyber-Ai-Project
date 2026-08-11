@@ -1397,12 +1397,24 @@ app.post('/chat/stream', async (req, res) => {
 });
 
 // Endpoint untuk cek kedua model (testing)
+// Di-cache biar gak nembak API beneran tiap kali di-poll frontend (yang polling tiap
+// beberapa menit) -- kalau gak di-cache, tiap poll = 1 request nyata ke Groq & Gemini,
+// gampang banget kena rate-limit sendiri gara-gara terlalu sering ngecek.
+const MODEL_STATUS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 menit
+let modelStatusCache = null;
+let modelStatusCacheAt = 0;
+
 app.get('/models/status', async (req, res) => {
+    const now = Date.now();
+    if (modelStatusCache && (now - modelStatusCacheAt) < MODEL_STATUS_CACHE_TTL_MS) {
+        return res.json(modelStatusCache);
+    }
+
     const status = {
         groq: { available: false, message: '' },
         gemini: { available: false, message: '' }
     };
-    
+
     // Test Groq
     try {
         await callGroq("Ping", null, null);
@@ -1410,22 +1422,35 @@ app.get('/models/status', async (req, res) => {
         status.groq.message = "✅ Groq ready";
     } catch (e) {
         status.groq.message = `❌ ${e.message}`;
+        // Fail-open: kalau sebelumnya kebaca available, error sesaat (network hiccup, dsb)
+        // jangan langsung matiin. Cuma disable kalau memang belum pernah kebaca available.
+        status.groq.available = modelStatusCache?.groq?.available ?? false;
     }
-    
+
     // Test Gemini
-    try {
-        await callGemini("Ping", null, null);
-        status.gemini.available = true;
-        status.gemini.message = "✅ Gemini ready";
-    } catch (e) {
-        if (isGeminiQuotaError(e)) {
-            status.gemini.available = false;
-            status.gemini.message = `❌ Gemini quota error: ${e.message}`;
-        } else {
-            status.gemini.message = `❌ ${e.message}`;
+    if (!process.env.GEMINI_API_KEY) {
+        status.gemini.available = false;
+        status.gemini.message = "❌ GEMINI_API_KEY belum diatur di .env";
+    } else {
+        try {
+            await callGemini("Ping", null, null);
+            status.gemini.available = true;
+            status.gemini.message = "✅ Gemini ready";
+        } catch (e) {
+            if (isGeminiQuotaError(e)) {
+                status.gemini.available = false;
+                status.gemini.message = `❌ Gemini quota error: ${e.message}`;
+            } else {
+                // Error yang BUKAN konfirmasi quota (misal hiccup jaringan sesaat) --
+                // jangan langsung disable, pertahankan status available terakhir yang diketahui.
+                status.gemini.available = modelStatusCache?.gemini?.available ?? true;
+                status.gemini.message = `⚠️ ${e.message} (dianggap sementara, belum di-disable)`;
+            }
         }
     }
-    
+
+    modelStatusCache = status;
+    modelStatusCacheAt = now;
     res.json(status);
 });
 
