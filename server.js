@@ -142,7 +142,7 @@ function buildHistoryTranscriptForGemini(history) {
         .join('\n');
 }
 
-async function callGroq(message, context, image, modelName = "meta-llama/llama-4-scout-17b-16e-instruct", extraContext = "", history = []) {
+async function callGroq(message, context, image, modelName = "qwen/qwen3.6-27b", extraContext = "", history = []) {
     const messagesForAI = [
         { role: "system", content: systemPrompt }
     ];
