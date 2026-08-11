@@ -268,7 +268,7 @@ async function callGemini(message, context, image, extraContext = "", history = 
 // tapi manggil onChunk(potongan_teks) tiap ada potongan baru yang nyampe dari API.
 // Tetep return teks lengkapnya juga di akhir, buat disimpen ke memori/riwayat.
 
-async function callGroqStream(message, context, image, modelName = "meta-llama/llama-4-scout-17b-16e-instruct", extraContext = "", onChunk = () => {}, history = []) {
+async function callGroqStream(message, context, image, modelName = "qwen/qwen3.6-27b", extraContext = "", onChunk = () => {}, history = []) {
     const messagesForAI = [
         { role: "system", content: systemPrompt }
     ];
