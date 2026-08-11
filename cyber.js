@@ -22,6 +22,12 @@ let currentChatId = getChatIdFromUrl() || localStorage.getItem('activeChatId') |
 localStorage.setItem('activeChatId', currentChatId);
 syncChatUrl(currentChatId, false); // replaceState: gak nambah entry history baru pas load pertama
 
+// Judul chat yang lagi aktif, di-cache di MEMORY (bukan localStorage global) -- soalnya
+// kalau disimpan di satu key localStorage yang sama buat semua chat, judulnya bisa
+// "nyangkut"/ketuker antar chat pas reload halaman atau pindah-pindah percakapan.
+// null artinya: chat ini belum punya judul -> perlu digenerate AI pas pesan pertama dikirim.
+let currentChatTitleCache = null;
+
 let isLoaded = false;
 let pendingImage = null;
 let pendingDocument = null; // { data: dataURL, filename, mimeType } -- buat PDF/Word/Excel/CSV/TXT/JSON
@@ -369,9 +375,9 @@ async function sendMessage() {
     userInput.style.height = 'auto';
     showTypingIndicator();
 
-    // Chat baru (belum punya judul) & ada teks -> minta AI bikinin judul,
-    // jalan BARENGAN sama request jawaban utama (gak nunggu berurutan).
-    const isChatBaru = !localStorage.getItem('currentChatTitle');
+    // Chat baru (belum punya judul di chat INI, dicek dari cache in-memory) & ada teks
+    // -> minta AI bikinin judul, jalan BARENGAN sama request jawaban utama (gak nunggu berurutan).
+    const isChatBaru = !!user && !currentChatTitleCache;
     const titlePromise = (isChatBaru && text) ? generateChatTitle(text) : Promise.resolve(null);
 
     try {
@@ -406,8 +412,8 @@ async function sendMessage() {
             const gambarUserUrl = await uploadImageToSupabase(currentImage, folderPath);
 
             const autoTitle = await titlePromise; // sudah jalan paralel dari atas, biasanya udah selesai duluan
-            if (autoTitle) localStorage.setItem('currentChatTitle', autoTitle);
-            const judulUntukDisimpan = localStorage.getItem('currentChatTitle') || "Chat Baru";
+            if (autoTitle) currentChatTitleCache = autoTitle;
+            const judulUntukDisimpan = currentChatTitleCache || "Chat Baru";
 
             await db.collection("riwayat_chat").add({
                 uid: user.uid,
@@ -965,13 +971,18 @@ window.muatRiwayatChat = function() {
             .orderBy("waktu", "asc")
             .get()
             .then((snap) => {
-                if (snap.empty) { renderWelcomeScreen(); return; } // chat baru/kosong -> tetap tampil sapaan
+                if (snap.empty) { currentChatTitleCache = null; renderWelcomeScreen(); return; } // chat baru/kosong -> tetap tampil sapaan
                 chatBox.innerHTML = "";
+                let lastTitle = null;
                 snap.forEach((doc) => {
                     const d = doc.data();
                     appendMessage('user', d.pesan, d.gambarUrl);
                     if (d.jawaban) appendMessage('ai', d.jawaban, d.gambarAiUrl, d.videoAiUrl);
+                    if (d.judul_chat) lastTitle = d.judul_chat;
                 });
+                // Chat ini udah pernah punya judul (tersimpan di Firestore) -> pakai itu,
+                // biar gak dikira "chat baru" dan malah minta AI bikin judul baru lagi.
+                currentChatTitleCache = lastTitle;
             })
             .catch(err => console.error("Error muat riwayat:", err));
     }
@@ -994,7 +1005,7 @@ window.tampilkanDaftarSidebar = function() {
                     item.onclick = () => {
                         currentChatId = d.chat_id;
                         localStorage.setItem('activeChatId', d.chat_id);
-                        localStorage.setItem('currentChatTitle', d.judul_chat || 'Chat Baru');
+                        currentChatTitleCache = d.judul_chat || null;
                         syncChatUrl(d.chat_id); // update URL biar bisa di-refresh/share balik ke chat ini
                         muatRiwayatChat();
                         if (window.innerWidth < 768) document.getElementById('sidebar').classList.add('sidebar-hidden');
@@ -1031,7 +1042,7 @@ window.ubahNamaChat = function() {
                     return batch.commit();
                 })
                 .then(() => {
-                    localStorage.setItem('currentChatTitle', namaBaru);
+                    currentChatTitleCache = namaBaru;
                     alert("Nama chat berhasil diubah, Bosku!");
                     if (typeof tampilkanDaftarSidebar === "function") {
                         tampilkanDaftarSidebar();
@@ -1085,6 +1096,7 @@ window.addEventListener('popstate', () => {
     const idFromUrl = getChatIdFromUrl();
     currentChatId = idFromUrl || generateUUID();
     localStorage.setItem('activeChatId', currentChatId);
+    currentChatTitleCache = null; // reset -- muatRiwayatChat() di bawah bakal isi ulang kalau chat ini emang udah punya judul
     if (firebase.auth().currentUser) {
         muatRiwayatChat();
     } else {
@@ -1096,7 +1108,7 @@ window.addEventListener('popstate', () => {
 window.mulaiChatBaru = function() {
     currentChatId = generateUUID();
     localStorage.setItem('activeChatId', currentChatId);
-    localStorage.removeItem('currentChatTitle');
+    currentChatTitleCache = null;
     syncChatUrl(currentChatId); // pushState: nambah entry history baru, bisa di-back
 
     renderWelcomeScreen();
