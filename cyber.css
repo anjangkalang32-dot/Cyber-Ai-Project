@@ -459,7 +459,7 @@ body {
 .inline-code {
     background: var(--hover-bg);
     padding: 2px 6px;
-    border-radius: 10px;
+    border-radius: 20px;
     font-family: 'JetBrains Mono', ui-monospace, monospace;
     font-size: 0.85em;
 }
@@ -467,7 +467,7 @@ body {
 /* ===== CODE BLOCKS ===== */
 .code-block-wrapper {
     background: #0e0e0e;
-    border-radius: var(--radius-sm);
+    border-radius: 20px;
     overflow: hidden;
     margin: 10px 0;
     font-size: 0.85rem;
