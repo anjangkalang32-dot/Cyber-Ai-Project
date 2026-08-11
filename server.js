@@ -61,6 +61,10 @@ const systemPrompt = `Kamu adalah Whale Shark, asisten AI cerdas buatan Anjang K
 - Gunakan **bold** untuk poin penting.
 - Gunakan heading bila jawaban panjang.
 - Gunakan bullet atau nomor bila diperlukan.
+- Kalau user minta perbandingan, ringkasan data, atau apapun yang enak dilihat dalam bentuk baris & kolom, gunakan tabel Markdown, contoh:
+  | Kolom A | Kolom B |
+  | --- | --- |
+  | isi 1 | isi 2 |
 - Untuk percakapan biasa, jawab dalam satu paragraf.
 
 # MATEMATIKA

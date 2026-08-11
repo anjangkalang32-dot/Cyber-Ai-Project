@@ -490,6 +490,33 @@ function escapeHtml(str) {
             background: rgba(127,127,127,0.18);
             font-size: 0.92em;
         }
+        .msg-content .msg-table-wrap {
+            margin: 4px 0 12px;
+            overflow-x: auto;
+            border: 1px solid rgba(127,127,127,0.25);
+            border-radius: 8px;
+        }
+        .msg-content table.msg-table {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 0.95em;
+        }
+        .msg-content table.msg-table th,
+        .msg-content table.msg-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid rgba(127,127,127,0.2);
+            text-align: left;
+            vertical-align: top;
+        }
+        .msg-content table.msg-table th {
+            font-weight: 700;
+            background: rgba(127,127,127,0.12);
+            white-space: nowrap;
+        }
+        .msg-content table.msg-table tr:last-child td { border-bottom: none; }
+        .msg-content table.msg-table tbody tr:nth-child(even) {
+            background: rgba(127,127,127,0.06);
+        }
     `;
     document.head.appendChild(style);
 })();
@@ -510,7 +537,25 @@ function formatInlineAiText(line) {
     return escaped;
 }
 
-// Ubah teks markdown (heading, list bernomor/bullet, paragraf) jadi HTML rapi.
+// Cek apakah sebuah baris adalah baris tabel Markdown, misal "| A | B |" atau "A | B" (tanpa pipe pinggir).
+function isTableRow(line) {
+    return line.includes('|') && line.trim() !== '';
+}
+// Baris pemisah header tabel, misal "| --- | :---: | ---: |".
+function isTableSeparatorRow(line) {
+    const cells = splitTableRow(line);
+    return cells.length > 0 && cells.every(c => /^:?-{1,}:?$/.test(c.trim()));
+}
+// Pecah "| a | b |" jadi ['a','b'], buang pipe kosong di ujung kiri/kanan kalau ada.
+function splitTableRow(line) {
+    let trimmed = line.trim();
+    if (trimmed.startsWith('|')) trimmed = trimmed.slice(1);
+    if (trimmed.endsWith('|')) trimmed = trimmed.slice(0, -1);
+    // Split di '|' tapi bukan yang di-escape "\|" (biar pipe di dalam teks tetap aman).
+    return trimmed.split(/(?<!\\)\|/).map(c => c.trim().replace(/\\\|/g, '|'));
+}
+
+// Ubah teks markdown (heading, list bernomor/bullet, tabel, paragraf) jadi HTML rapi.
 // PENTING: ini cuma dipanggil untuk bagian teks biasa, bukan isi blok kode -- soalnya
 // strip backslash di sini bisa ngerusak kode (regex, path Windows, escape sequence, dll).
 function markdownToHtml(text) {
@@ -537,12 +582,53 @@ function markdownToHtml(text) {
         }
     };
 
-    for (const rawLine of lines) {
-        const line = rawLine.trim();
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
 
         if (line === '') {
             flushParagraph();
             closeList();
+            continue;
+        }
+
+        // Tabel: baris ini punya '|' DAN baris berikutnya adalah separator "---" -> ini header tabel.
+        if (isTableRow(line) && i + 1 < lines.length && isTableSeparatorRow(lines[i + 1])) {
+            flushParagraph();
+            closeList();
+
+            const headerCells = splitTableRow(line);
+            const alignCells = splitTableRow(lines[i + 1]).map(c => {
+                const t = c.trim();
+                if (t.startsWith(':') && t.endsWith(':')) return 'center';
+                if (t.endsWith(':')) return 'right';
+                if (t.startsWith(':')) return 'left';
+                return '';
+            });
+
+            let j = i + 2;
+            const bodyRows = [];
+            while (j < lines.length && isTableRow(lines[j].trim()) && !isTableSeparatorRow(lines[j].trim())) {
+                bodyRows.push(splitTableRow(lines[j].trim()));
+                j++;
+            }
+
+            html += '<div class="msg-table-wrap"><table class="msg-table"><thead><tr>';
+            headerCells.forEach((cell, idx) => {
+                const align = alignCells[idx] ? ` style="text-align:${alignCells[idx]}"` : '';
+                html += `<th${align}>${formatInlineAiText(cell)}</th>`;
+            });
+            html += '</tr></thead><tbody>';
+            bodyRows.forEach(row => {
+                html += '<tr>';
+                headerCells.forEach((_, idx) => {
+                    const align = alignCells[idx] ? ` style="text-align:${alignCells[idx]}"` : '';
+                    html += `<td${align}>${formatInlineAiText(row[idx] || '')}</td>`;
+                });
+                html += '</tr>';
+            });
+            html += '</tbody></table></div>';
+
+            i = j - 1; // lompatin baris-baris tabel yang udah diproses
             continue;
         }
 
