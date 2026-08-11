@@ -142,6 +142,20 @@ function buildHistoryTranscriptForGemini(history) {
         .join('\n');
 }
 
+// Beberapa reasoning model (misal Qwen di Groq) nulis proses "berpikir"-nya sebagai teks
+// literal <think>...</think> LANGSUNG di dalam content jawaban, bukan di field terpisah
+// (beda dari gpt-oss yang biasanya taruh di reasoning_content). Kalau nggak dibuang di
+// sini, teks "mikir" itu ikut ke-render ke user seolah-olah itu jawaban beneran.
+function stripThinkTags(text) {
+    if (!text) return text;
+    // Buang blok <think>...</think> yang lengkap (ada buka & tutupnya)
+    let cleaned = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
+    // Jaga-jaga: kalau token habis duluan di tengah proses mikir, tag penutup
+    // </think> bisa aja nggak pernah kekirim. Buang juga dari <think> sampai akhir teks.
+    cleaned = cleaned.replace(/<think>[\s\S]*$/i, '');
+    return cleaned.trim();
+}
+
 async function callGroq(message, context, image, modelName = "qwen/qwen3.6-27b", extraContext = "", history = []) {
     const messagesForAI = [
         { role: "system", content: systemPrompt }
@@ -195,7 +209,7 @@ async function callGroq(message, context, image, modelName = "qwen/qwen3.6-27b",
 
     const msg = chatCompletion.choices[0]?.message;
     // Reasoning model kadang taruh jawaban di content, kadang di reasoning_content kalau content kosong.
-    const content = msg?.content || msg?.reasoning_content || "";
+    const content = stripThinkTags(msg?.content || msg?.reasoning_content || "");
     if (!content) {
         console.warn('\u26a0\ufe0f [callGroq] Jawaban kosong dari model, full message:', JSON.stringify(msg));
     }
