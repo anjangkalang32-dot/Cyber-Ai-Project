@@ -163,7 +163,7 @@ const supabaseClient = supabase.createClient(SB_URL, SB_KEY);
 
 // Nama bucket Supabase Storage tempat gambar (hasil AI maupun upload user) disimpan.
 // GANTI string ini kalau nama bucket kamu beda (cek di Supabase Dashboard > Storage).
-const IMAGE_BUCKET = 'ai-galery';
+const IMAGE_BUCKET = 'ai_galery';
 
 // Ubah data URL (base64) jadi Blob, perlu buat di-upload ke Supabase Storage.
 async function dataUrlToBlob(dataUrl) {
