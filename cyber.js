@@ -432,7 +432,13 @@ async function sendMessage() {
             }]).then(() => console.log("Memori aman di Supabase"));
 
             const folderPath = `${user.uid}/${currentChatId}`;
-            const gambarUserUrl = await uploadImageToSupabase(currentImage, folderPath);
+            // Gambar upload user & gambar hasil AI dua-duanya di-upload ke bucket Supabase
+            // (jangan simpan base64 mentah ke Firestore, gampang kena limit 1MB/dokumen
+            // dan bikin .add() gagal diam-diam -> chat & gambar "hilang" pas dibuka lagi).
+            const [gambarUserUrl, gambarAiUrl] = await Promise.all([
+                uploadImageToSupabase(currentImage, folderPath),
+                uploadImageToSupabase(data.image, `${folderPath}/ai`)
+            ]);
 
             const autoTitle = await titlePromise; // sudah jalan paralel dari atas, biasanya udah selesai duluan
             if (autoTitle) currentChatTitleCache = autoTitle;
@@ -445,7 +451,9 @@ async function sendMessage() {
                 pesan: text,
                 gambarUrl: gambarUserUrl,
                 jawaban: replyText,
-                gambarAiUrl: data.image || null,
+                // Fallback ke data.image kalau upload ke bucket gagal (misal RLS nolak),
+                // biar minimal gambarnya masih kekirim balik ke user di render pertama.
+                gambarAiUrl: gambarAiUrl || data.image || null,
                 videoAiUrl: data.video || null,
                 waktu: firebase.firestore.FieldValue.serverTimestamp()
             });
